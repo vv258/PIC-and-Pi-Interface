@@ -1,7 +1,35 @@
+
+
+#ifndef CONFIG_H
+#define	CONFIG_H
+#define _SUPPRESS_PLIB_WARNING 
+#define _DISABLE_OPENADC10_CONFIGPORT_WARNING
+#include <plib.h>
+// serial stuff
+#include <stdio.h>
+
+//=============================================================
+// 60 MHz
+#pragma config FNOSC = FRCPLL, POSCMOD = OFF
+#pragma config FPLLIDIV = DIV_2, FPLLMUL = MUL_20, FPLLODIV = DIV_2  //40 MHz
+#pragma config FPBDIV = DIV_1 // PB 40 MHz
+#pragma config FWDTEN = OFF,  JTAGEN = OFF
+#pragma config FSOSCEN = OFF  //PINS 11 and 12 to secondary oscillator!
+#pragma config DEBUG = OFF   // RB4 and RB5
+//==============================================================
+
+// set up clock parameters
+// system cpu clock
+#define sys_clock 40000000
+
+// sys_clock/FPBDIV
+#define pb_clock sys_clock/1 // divide by one in this case
+
+#endif	/* CONFIG_H */
+
 ////////////////////////////////////
 // clock AND protoThreads configure!
 // You MUST check this file!
-#include "config_1_2_3.h"
 // threading library
 #include "pt_cornell_1_2_3.h"
 // yup, the expander
@@ -56,6 +84,12 @@ static char cTranData[10];
 static char cbuffer[20];
 static char cRecvChar;
 static int iCheckSumValid=0;
+
+int iSampleCh[4],iSampleChBuf[4];
+int iTotalNumOfADCSamples=0, iNumOfADCSamples[4];
+
+int iBuffer[4][1024];
+
 void printLine(int line_number, char* print_buffer, short text_color, short back_color){
     // line number 0 to 31 
     /// !!! assumes tft_setRotation(0);
@@ -118,6 +152,11 @@ void vExec_DAC_SetA(char *cRecvData){
     iDACValue=((cMSBbits && 0x3f)<<6)|(cLSBbits && 0x3f);
     sprintf(cbuffer,"Set DAC A to %d", iDACValue);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
+    mPORTBClearBits(BIT_11); // start transaction
+    WriteSPI2( DAC_config_chan_A | (iDACValue));
+    while (SPI2STATbits.SPIBUSY); // wait for end of transaction
+                            // CS high
+    mPORTBSetBits(BIT_11); // end transaction
 }
                         
 void vExec_DAC_SetB(char *cRecvData){
@@ -134,6 +173,11 @@ void vExec_DAC_SetB(char *cRecvData){
     iDACValue=((cMSBbits && 0x3f)<<6)|(cLSBbits && 0x3f);
     sprintf(cbuffer,"Set DAC B to %d", iDACValue);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
+    mPORTBClearBits(BIT_11); // start transaction
+    WriteSPI2( DAC_config_chan_B | (iDACValue));
+    while (SPI2STATbits.SPIBUSY); // wait for end of transaction
+                            // CS high
+    mPORTBSetBits(BIT_11); // end transaction
 }
     
 void vExec_Check_Buf(){
@@ -147,7 +191,6 @@ void vExec_Set_Samp_Freq(char *cRecvData){
     char cSampleFreq= cRecvData[0];
     char cSampleMSBbits =cRecvData[1];
     char cSampleLSBbits =cRecvData[2];
-    int iNumOfSamples;
     tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set  Sample Frequency",SetSampFreq);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
@@ -157,20 +200,28 @@ void vExec_Set_Samp_Freq(char *cRecvData){
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte3  %02X  Num of Samples LSB Bits B5.B4.B3.B2.B1.B0",cSampleLSBbits);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    iNumOfSamples=((cSampleMSBbits && 0x3f)<<6)|(cSampleLSBbits && 0x3f);
-    sprintf(cbuffer,"Set %dKhz Sample frequency and acquire &d samples", cSampleFreq,iNumOfSamples);
-    printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
+    iTotalNumOfADCSamples=((cSampleMSBbits && 0x3f)<<6)|(cSampleLSBbits && 0x3f);
+    sprintf(cbuffer,"Set %dKhz Sample frequency and acquire &d samples", cSampleFreq,iTotalNumOfADCSamples);
+    printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    OpenTimer1(T1_ON | T1_SOURCE_INT | T1_PS_1_1, cSampleFreq<<10);
+    ConfigIntTimer1(T1_INT_ON | T1_INT_PRIOR_2); 
+    mT1ClearIntFlag(); // and clear the interrupt flag 
+    
 }
                         
 void vExec_Start_ADC(char *cRecvData){
-    char cChannel= cRecvData[0];
+    char cChannel= cRecvData[0]>>2;
+    char cBuffer=cRecvData[0]&0xFC;
     tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set Start ADC",StartADC);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-    sprintf(cbuffer,"Byte1  %02X  Channel Number %d ",cChannel,cChannel);
+    sprintf(cbuffer,"Byte1  %02X  Channel Number %d Buffer Numer %d",cRecvData,cChannel,cBuffer);
     printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Start ACquisition in Channel no %d",cChannel,cChannel);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
+    iSampleCh[cChannel]=1;
+    iSampleChBuf[cChannel]=cBuffer;
+
 }
                         
 void vExec_Read_Buf(char *cRecvData){
@@ -178,6 +229,7 @@ void vExec_Read_Buf(char *cRecvData){
     char cSampleMSBbits =cRecvData[1];
     char cSampleLSBbits =cRecvData[2];
     int iNumOfSamples;
+    int iByteCount=0;
     tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Read Buffer",ReadBuf);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
@@ -190,12 +242,18 @@ void vExec_Read_Buf(char *cRecvData){
     iNumOfSamples=((cSampleMSBbits && 0x3f)<<6)|(cSampleLSBbits && 0x3f);
     sprintf(cbuffer,"Read %d Samples from Buffer Number &d", iNumOfSamples,cBufferNum);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
+     for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
+        while(!UARTTransmitterIsReady(UART2));
+        UARTSendDataByte(UART1, iBuffer[cBufferNum][iByteCount]);
+    }
 }
+
 void vExec_Write_Buf(char *cRecvData){
     char cBufferNum= cRecvData[0];
     char cSampleMSBbits =cRecvData[1];
     char cSampleLSBbits =cRecvData[2];
     int iNumOfSamples;
+    int iByteCount=0;
     tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Write Buffer",WriteBuf);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
@@ -208,6 +266,12 @@ void vExec_Write_Buf(char *cRecvData){
     iNumOfSamples=((cSampleMSBbits && 0x3f)<<6)|(cSampleLSBbits && 0x3f);
     sprintf(cbuffer,"Write %d Samples to Buffer Number &d", iNumOfSamples,cBufferNum);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
+    
+   
+    for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
+            while(!UARTReceivedDataIsAvailable(UART2));
+            iBuffer[cBufferNum][iByteCount]=iUARTGetDataByte(UART2);
+    }
 }
 
 void vExec_Set_PWM_Per(char *cRecvData){
@@ -227,6 +291,13 @@ void vExec_Set_PWM_Per(char *cRecvData){
     iPeriod=((cPeriodMSBbits && 0x3f)<<10)|((cPeriodMLSBbits && 0x1f)<<5)|cPeriodLSBbits;
     sprintf(cbuffer,"Set PWM Period to %d",iPeriod);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
+    OpenTimer2(T2_ON | T2_SOURCE_INT | T2_PS_1_1, iPeriod);
+    ConfigIntTimer2(T2_INT_ON | T2_INT_PRIOR_2); 
+    mT2ClearIntFlag(); // and clear the interrupt flag 
+    OpenOC1(OC_ON | OC_TIMER2_SRC | OC_PWM_FAULT_PIN_DISABLE , iPeriod, iPeriod); // 
+    OpenOC4(OC_ON | OC_TIMER2_SRC | OC_PWM_FAULT_PIN_DISABLE , iPeriod, iPeriod); // 
+
+
 } 
     
 
@@ -248,7 +319,8 @@ void vExec_Start_PWM1(char *cRecvData){
     iPWM1ONPeriod=((cOnTime1MSBbits && 0x3f)<<10)|((cOnTime1MLSBbits && 0x1f)<<5)|cOnTime1LSBbits;
     sprintf(cbuffer,"Set PWM Period to %d",iPWM1ONPeriod);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    
+    SetDCOC1PWM(iPWM1ONPeriod);
+
 }
     
 void vExec_Start_PWM2(char *cRecvData){
@@ -268,7 +340,7 @@ void vExec_Start_PWM2(char *cRecvData){
     iPWM2ONPeriod=((cOnTime2MSBbits && 0x3f)<<10)|((cOnTime2MLSBbits && 0x1f)<<5)|cOnTime2LSBbits;
     sprintf(cbuffer,"Set PWM Period to %d",iPWM2ONPeriod);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    
+    SetDCOC4PWM(iPWM2ONPeriod); 
 }
 
 int CheckSum(char *cRecvData, int iNumOfBytes, char iSum){
@@ -347,11 +419,24 @@ int iNumOfDataBytes(char cRecvChar){
                         
                         case(WriteBuf):     vExec_Write_Buf(cRecvData);      break;
 
-             
         }
 
  }
 
+
+
+void __ISR(_TIMER_1_VECTOR, ipl3) Timer1Handler(void){
+mT1ClearIntFlag();                                 // clear the interrupt flag
+int iChannelCount;
+    for(iChannelCount=0;iChannelCount<4;iChannelCount++){
+        if(iNumOfADCSamples[iChannelCount]==iTotalNumOfADCSamples)
+            iSampleCh[iChannelCount]=0;
+        else if(iSampleCh[iChannelCount]){
+            iBuffer[iSampleChBuf][iNumOfADCSamples[iChannelCount]++]=ReadADC10(iChannelCount);
+        }
+        
+    }
+}
 
 static struct pt pt_uart_receive, pt_timer;
 
@@ -431,65 +516,30 @@ static PT_THREAD (protothread_timer(struct pt *pt))
 
 void PIN_MANAGER_Initialize(void)
 {
-    /****************************************************************************
-     * Setting the Output Latch SFR(s)
-     ***************************************************************************/
-    LATA = 0x0000;
-    LATB = 0x0000;
-
-    /****************************************************************************
-     * Setting the GPIO Direction SFR(s)
-     ***************************************************************************/
-    TRISA = 0x001F;
-    TRISB = 0xE323;
-
-    /****************************************************************************
-     * Setting the Weak Pull Up and Weak Pull Down SFR(s)
-     ***************************************************************************/
-    CNPDA = 0x0000;
-    CNPDB = 0x0000;
-    CNPUA = 0x0000;
-    CNPUB = 0x0000;
-
-    /****************************************************************************
-     * Setting the Open Drain SFR(s)
-     ***************************************************************************/
-    ODCA = 0x0000;
-    ODCB = 0x0000;
-
-    /****************************************************************************
-     * Setting the Analog/Digital Configuration SFR(s)
-     ***************************************************************************/
-    ANSELA = 0x0003;
-    ANSELB = 0x000E;
-
-    /****************************************************************************
-     * Set the PPS
-     ***************************************************************************/
-    SYSKEY = 0x12345678;
-    SYSKEY = 0xAA996655;
-    SYSKEY = 0x556699AA;    
-    CFGCONbits.IOLOCK = 0;
-
-    RPB7Rbits.RPB7R = 0x0001;   //RB7->UART1:U1TX;
-    RPB3Rbits.RPB3R = 0x0005;   //RB3->OC1:OC1;
-    IC1Rbits.IC1R = 0x0000;   //RA2->IC1:IC1;
-    U1RXRbits.U1RXR = 0x0002;   //RA4->UART1:U1RX;
-    U2RXRbits.U2RXR = 0x0001;   //RB5->UART2:U2RX;
-    SDI2Rbits.SDI2R = 0x0003;   //RB13->SPI2:SDI2;
-    SS2Rbits.SS2R = 0x0001;   //RB14->SPI2:SS2;
-    RPB10Rbits.RPB10R = 0x0002;   //RB10->UART2:U2TX;
-    IC2Rbits.IC2R = 0x0000;   //RA3->IC2:IC2;
-    RPB2Rbits.RPB2R = 0x0005;   //RB2->OC4:OC4;
-    RPB11Rbits.RPB11R = 0x0004;   //RB11->SPI2:SDO2;
-
-    CFGCONbits.IOLOCK = 1; // lock   PPS
-    SYSKEY = 0x00000000; 
+PPSInput(	3	,	IC1	    ,	RPA2	);
+PPSInput(	3	,	U1RX	,	RPA4	);
+PPSInput(	2	,	U2RX	,	RPB5	);
+PPSInput(	3	,	SDI2	,	RPB13	);
+PPSInput(	4	,	IC2	    ,	RPA3	);
+PPSOutput(	1	,	RPB7	,	U1TX	);
+PPSOutput(	1	,	RPB3	,	OC1	    );
+PPSOutput(	4	,	RPB14	,	SS2	    );
+PPSOutput(	4	,	RPB10	,	U2TX	);
+PPSOutput(	3	,	RPB2	,	OC4	    );
+PPSOutput(	2	,	RPB11	,	SDO2	); 
     
 }
 
 void Variable_Initialize(void){
-     RecvState= ACTIVE_WAIT_FOR_SOT;  
+    iSampleCh[0]=0;
+    iSampleCh[1]=0;
+    iSampleCh[2]=0;
+    iSampleCh[3]=0;
+    iNumOfSamples[0]=0;
+    iNumOfSamples[1]=0;
+    iNumOfSamples[2]=0;
+    iNumOfSamples[3]=0;
+    RecvState= ACTIVE_WAIT_FOR_SOT;  
  
 }
 
@@ -497,13 +547,14 @@ void Variable_Initialize(void){
 void main(){
 
   PT_setup();
-  PIN_MANAGER_Initialize();
+ // PIN_MANAGER_Initialize();
   Variable_Initialize();
     
   // === setup system wide interrupts  ========
   INTEnableSystemMultiVectoredInt();
   
      //=====setup  UART 1 to debug========
+  
   UARTConfigure(UART1, UART_ENABLE_PINS_TX_RX_ONLY);
   UARTSetLineControl(UART1, UART_DATA_SIZE_8_BITS | UART_PARITY_NONE | UART_STOP_BITS_1);
   UARTSetDataRate(UART1, pb_clock, DebugBaudRate);
@@ -511,11 +562,50 @@ void main(){
   
     
     //=====setup  UART 2 to communicate with RPi========
+  
   UARTConfigure(UART2, UART_ENABLE_PINS_TX_RX_ONLY);
   UARTSetLineControl(UART2, UART_DATA_SIZE_8_BITS | UART_PARITY_NONE | UART_STOP_BITS_1);
   UARTSetDataRate(UART2, pb_clock, ComBaudRate);
   UARTEnable(UART2, UART_ENABLE_FLAGS(UART_PERIPHERAL | UART_RX | UART_TX));
   
+ // the ADC ///////////////////////////////////////
+// configure and enable the ADC
+CloseADC10(); // ensure the ADC is off before setting the configuration
+
+// define setup parameters for OpenADC10
+// Turn module on | ouput in integer | trigger mode auto | enable autosample
+// ADC_CLK_AUTO -- Internal counter ends sampling and starts conversion (Auto convert)
+// ADC_AUTO_SAMPLING_ON -- Sampling begins immediately after last conversion completes; SAMP bit is automatically set
+// ADC_AUTO_SAMPLING_OFF -- Sampling begins with AcquireADC10();
+#define PARAM1  ADC_FORMAT_INTG16 | ADC_CLK_AUTO | ADC_AUTO_SAMPLING_ON //
+
+// define setup parameters for OpenADC10
+// ADC ref external  | disable offset test | disable scan mode | do 2 sample | use single buf | alternate mode on
+#define PARAM2  ADC_VREF_AVDD_AVSS | ADC_OFFSET_CAL_DISABLE | ADC_SCAN_OFF | ADC_SAMPLES_PER_INT_2 | ADC_ALT_BUF_OFF | ADC_ALT_INPUT_ON
+        //
+// Define setup parameters for OpenADC10
+// use peripherial bus clock | set sample time | set ADC clock divider
+// ADC_CONV_CLK_Tcy2 means divide CLK_PB by 2 (max speed)
+// ADC_SAMPLE_TIME_5 seems to work with a source resistance < 1kohm
+// SLOW it down a little
+#define PARAM3 ADC_CONV_CLK_PB | ADC_SAMPLE_TIME_15 | ADC_CONV_CLK_Tcy //ADC_SAMPLE_TIME_15| ADC_CONV_CLK_Tcy2
+
+// define setup parameters for OpenADC10
+// set AN11 and  as analog inputs
+#define PARAM4 ENABLE_AN0_ANA | ENABLE_AN1_ANA | ENABLE_AN2_ANA | ENABLE_AN3_ANA// 
+
+// define setup parameters for OpenADC10
+// do not assign channels to scan
+#define PARAM5 SKIP_SCAN_ALL //|SKIP_SCAN_AN5 //SKIP_SCAN_AN1 |SKIP_SCAN_AN5  //SKIP_SCAN_ALL
+ 
+// // configure to sample AN5 and AN1 on MUX A and B
+SetChanADC10( ADC_CH0_NEG_SAMPLEA_NVREF | ADC_CH0_POS_SAMPLEA_AN1 | ADC_CH0_NEG_SAMPLEB_NVREF | ADC_CH0_POS_SAMPLEB_AN5 );
+    
+OpenADC10( PARAM1, PARAM2, PARAM3, PARAM4, PARAM5 ); // configure ADC using the parameters defined above
+
+EnableADC10(); // Enable the ADC
+    
+    
     
   PT_INIT(&pt_timer);
   PT_INIT(&pt_uart_receive);
@@ -530,7 +620,6 @@ while (1){
       PT_SCHEDULE(protothread_timer(&pt_timer));
       PT_SCHEDULE(protothread_uart_receive(&pt_uart_receive));
 
- //     PT_SCHEDULE(protothread_sound(&pt_sound));   
   }
     
 }
