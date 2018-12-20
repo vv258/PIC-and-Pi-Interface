@@ -11,6 +11,8 @@ which will abstract the functions of the PIC microcontroller and act as driver f
 hardware. The application can perform low level tasks by making library calls without worrying
 about the actual implementation.
 
+![Block Diagram](https://github.com/vv258/PIC-and-Pi-Interface/blob/master/images/1.png)
+
 Both the devices are combined to take advantage of the PIC32 peripherals for
 interfacing, and the high performance of Pi on computation. The plan is to use the PIC32 for
 input reading, output generation, and use the Pi for decision making and user-interface. The
