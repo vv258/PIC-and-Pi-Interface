@@ -461,7 +461,7 @@ static PT_THREAD (protothread_uart_receive(struct pt *pt))
         //printf(cRecvChar);
         
         
-        while(!UARTTransmitterIsReady(UART2));
+       /* while(!UARTTransmitterIsReady(UART2));
         UARTSendDataByte(UART2,cRecvChar );
           while(!UARTTransmitterIsReady(UART2));
         UARTSendDataByte(UART2,RecvState );
@@ -469,7 +469,7 @@ static PT_THREAD (protothread_uart_receive(struct pt *pt))
         UARTSendDataByte(UART2,RecvStatus );
             while(!UARTTransmitterIsReady(UART2));
         UARTSendDataByte(UART2,'\n' );
-        
+        */
         if(RecvState==ACTIVE_WAIT_FOR_SOT && cRecvChar== 0xF0){
             RecvState=ACTIVE_PARSE;
             iCheckSumValid=0;
