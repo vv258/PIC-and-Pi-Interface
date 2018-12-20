@@ -285,7 +285,7 @@ void vExec_Write_Buf(char *cRecvData){
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte3  %02X  Num of Samples LSB Bits B5.B4.B3.B2.B1.B0",cSampleLSBbits);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    iNumOfSamples=((cSampleMSBbits & 0x1f)<<5)|(cSampleLSBbits & 0x1f);
+    iNumOfSamples=((cSampleMSBbits )<<5)|(cSampleLSBbits & 0x1f);
     sprintf(cbuffer,"Write %d Samples to Buffer Number %d", iNumOfSamples,cBufferNum);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
    
@@ -430,7 +430,7 @@ void vExec_DAC_ConfigB(char *cRecvData){
 }  
 void vExec_DAC_ConfigAB(char *cRecvData){
     char cBufferA= cRecvData[0]>>2;
-    char cBufferB=cRecvData[0]&0xFC;    
+    char cBufferB=cRecvData[0]&0x3;    
     iDACmode=cRecvData[1]+2;
     sprintf(cbuffer,"Command    %02X    Set Config DAC A and B",ConfigDACAB);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
@@ -445,12 +445,7 @@ void vExec_DAC_ConfigAB(char *cRecvData){
     int i=0;
     short *pDAC3;
     pDAC3=pDAC1;
-    for(i=0;i<1024;i++){
-     sprintf(cbuffer,"%x,",*pDAC3 );
-             pDAC3++; 
-
-    printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-     }
+    
     for(i=0;i<2048;i+=2){
         iDACBuf[i]=DAC_config_chan_A|*pDAC1;
         iDACBuf[i+1]=DAC_config_chan_B|*pDAC2;
@@ -459,10 +454,7 @@ void vExec_DAC_ConfigAB(char *cRecvData){
         
     }
     
-     for(i=0;i<2048;i++){
-     sprintf(cbuffer,"%d,",iDACBuf[i] );
-    printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-     }
+  
 }   
 void vExec_DAC_Start(char *cRecvData){
     char cSampleFreq= cRecvData[0];
@@ -482,20 +474,20 @@ void vExec_DAC_Start(char *cRecvData){
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     
     switch(iDACmode){
-        case 0:     OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_1,800);
+        case 0:     OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_1, SYS_FREQ/(cSampleFreq<<10));
                     DmaChnOpen(DMA_CHANNEL3, 0, DMA_OPEN_DEFAULT);
                     DmaChnSetTxfer(DMA_CHANNEL3,(short *) iDACBuf, &SPI2BUF, iTotalNumOfDACSamples*2, 2, 2 );
 	                
                     break;
-        case 1:     OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_1,800 );
+        case 1:     OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_1,SYS_FREQ/(cSampleFreq<<10) );
                     DmaChnOpen(DMA_CHANNEL3, 0, DMA_OPEN_AUTO);
                     DmaChnSetTxfer(DMA_CHANNEL3, (short *)iDACBuf, &SPI2BUF, iTotalNumOfDACSamples*2, 2, 2 );
                     break;
-        case 2:     OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_1,800 );
+        case 2:     OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_1,SYS_FREQ/(cSampleFreq<<11) );
                     DmaChnOpen(DMA_CHANNEL3, 0, DMA_OPEN_DEFAULT);
                     DmaChnSetTxfer(DMA_CHANNEL3, (short *)iDACBuf, &SPI2BUF, iTotalNumOfDACSamples*4, 2, 2 );
                     break;
-        case 3:     OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_1, 800);
+        case 3:     OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_1, SYS_FREQ/(cSampleFreq<<11));
                     DmaChnOpen(DMA_CHANNEL3, 0, DMA_OPEN_AUTO);
                     DmaChnSetTxfer(DMA_CHANNEL3, (short *)iDACBuf, &SPI2BUF, iTotalNumOfDACSamples*4, 2, 2 );
                     break;
