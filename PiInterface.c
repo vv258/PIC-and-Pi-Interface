@@ -121,7 +121,7 @@ void printLine(int line_number, char* print_buffer, short text_color, short back
 void vExec_Read_Input(char *cRecvData){
     char cMSBbits =cRecvData[0];
     char cLSBbits =cRecvData[1];
-    tft_fillScreen(ILI9340_BLACK);
+   // tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Read Input",ReadInput);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte1  %02X  Read Bits B7.B6.B5.B4 if 1 ",cMSBbits);
@@ -134,7 +134,7 @@ void vExec_Read_Input(char *cRecvData){
 void vExec_Write_Input(char *cRecvData){
     char cMSBbits =cRecvData[0];
     char cLSBbits =cRecvData[1];
-    tft_fillScreen(ILI9340_BLACK);
+   // tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Write Input",WriteInput);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte1  %02X  Write Bits B7.B6.B5.B4 if 1",cMSBbits);
@@ -147,7 +147,7 @@ void vExec_DAC_SetA(char *cRecvData){
     char cMSBbits =cRecvData[0];
     char cLSBbits =cRecvData[1];
     int iDACValue;
-    tft_fillScreen(ILI9340_BLACK);
+   // tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set DAC Channel A",DACSetA);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte1  %02X  DAC MSB Bits B11.B10.B9.B8.B7.B6",cMSBbits);
@@ -169,7 +169,7 @@ void vExec_DAC_SetB(char *cRecvData){
     char cMSBbits =cRecvData[0];
     char cLSBbits =cRecvData[1];
     int iDACValue;
-    tft_fillScreen(ILI9340_BLACK);
+   // tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set DAC Channel B",DACSetB);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte1  %02X  DAC MSB Bits B11.B10.B9.B8.B7.B6",cMSBbits);
@@ -189,7 +189,7 @@ void vExec_DAC_SetB(char *cRecvData){
 }
     
 void vExec_Check_Buf(){
-    tft_fillScreen(ILI9340_BLACK);
+  //  tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Check Buffer Status",CheckBuf);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     
@@ -199,7 +199,7 @@ void vExec_Set_Samp_Freq(char *cRecvData){
     char cSampleFreq= cRecvData[0];
     char cSampleMSBbits =cRecvData[1];
     char cSampleLSBbits =cRecvData[2];
-    tft_fillScreen(ILI9340_BLACK);
+  //  tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set  Sample Frequency",SetSampFreq);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte1  %02X  Sample Frequency %d Khz",cSampleFreq,cSampleFreq);
@@ -220,7 +220,7 @@ void vExec_Set_Samp_Freq(char *cRecvData){
 void vExec_Start_ADC(char *cRecvData){
     char cChannel= cRecvData[0]>>2;
     char cBuffer=cRecvData[0]&0xFC;
-    tft_fillScreen(ILI9340_BLACK);
+   // tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set Start ADC",StartADC);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte1  %02X  Channel Number %d Buffer Numer %d",cRecvData,cChannel,cBuffer);
@@ -238,7 +238,7 @@ void vExec_Read_Buf(char *cRecvData){
     char cSampleLSBbits =cRecvData[2];
     int iNumOfSamples;
     int iByteCount=0;
-    tft_fillScreen(ILI9340_BLACK);
+   // tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Read Buffer",ReadBuf);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte1  %02X  Buffer Number %d",cBufferNum,cBufferNum);
@@ -267,7 +267,7 @@ void vExec_Write_Buf(char *cRecvData){
     char cSampleLSBbits =cRecvData[2];
     int iNumOfSamples;
     int iByteCount=0;
-    tft_fillScreen(ILI9340_BLACK);
+  //  tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Write Buffer",WriteBuf);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte1  %02X  Buffer Number %d",cBufferNum,cBufferNum);
@@ -321,7 +321,7 @@ void vExec_Set_PWM_Per(char *cRecvData){
     char cPeriodMSBbits= cRecvData[0];
     char cPeriodLSBbits =cRecvData[1];
      int iPeriod;
-    tft_fillScreen(ILI9340_BLACK);
+ //   tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set  PWM Period",SetPWMPer);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte1  %02X  Period MSB B11.B10.B9.B8.B7.B6",cPeriodMSBbits);
@@ -347,7 +347,7 @@ void vExec_Start_PWM1(char *cRecvData){
     char cOnTime1MSBbits= cRecvData[0];
     char cOnTime1LSBbits =cRecvData[1];
     int iPWM1ONPeriod;
-    tft_fillScreen(ILI9340_BLACK);
+  //  tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set  PWM 1",StartPWM1);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte1  %02X  On Time 1 MSB B11.B10.B9.B8.B7.B6",cOnTime1MSBbits);
@@ -365,7 +365,7 @@ void vExec_Start_PWM2(char *cRecvData){
     char cOnTime2MSBbits= cRecvData[0];
     char cOnTime2LSBbits =cRecvData[1];
     int iPWM2ONPeriod;
-    tft_fillScreen(ILI9340_BLACK);
+ //   tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set  PWM 2",StartPWM2);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte1  %02X  On Time 1 MSB B11.B10.B9.B8.B7.B6",cOnTime2MSBbits);
@@ -488,12 +488,12 @@ static PT_THREAD (protothread_timer(struct pt *pt))
    
         PT_YIELD_TIME_msec(1000) ;
         sys_time_seconds++ ;
-    tft_fillRoundRect(0, 220, 239, 8, 1, ILI9340_BLUE);// x,y,w,h,radius,color
-    tft_setTextColor(ILI9340_WHITE); 
-    tft_setCursor(0, 220);
-    tft_setTextSize(1);
+//    tft_fillRoundRect(0, 220, 239, 8, 1, ILI9340_BLUE);// x,y,w,h,radius,color
+ //   tft_setTextColor(ILI9340_WHITE); 
+ //   tft_setCursor(0, 220);
+ //   tft_setTextSize(1);
     sprintf(cbuffer,"Time = %d seconds",sys_time_seconds );
-    tft_writeString(cbuffer);
+ //   tft_writeString(cbuffer);
    
    PT_END(pt);
 
@@ -648,7 +648,11 @@ SetChanADC10( ADC_CH0_NEG_SAMPLEA_NVREF | ADC_CH0_POS_SAMPLEA_AN1 | ADC_CH0_NEG_
 OpenADC10( PARAM1, PARAM2, PARAM3, PARAM4, PARAM5 ); // configure ADC using the parameters defined above
 
 EnableADC10(); // Enable the ADC
+     SpiChnOpen(SPI_CHANNEL2 , SPI_OPEN_ON | SPI_OPEN_MODE16 | SPI_OPEN_MSTEN | SPI_OPEN_CKE_REV , 2);
     
+        mPORTASetPinsDigitalOut(BIT_3);
+     mPORTASetBits(BIT_3);
+       
     
     
   PT_INIT(&pt_timer);
@@ -671,8 +675,7 @@ EnableADC10(); // Enable the ADC
     while(!UARTTransmitterIsReady(UART2));
         UARTSendDataByte(UART2, '\n');
     
-    
-    
+ 
     DmaChnOpen(DMA_CHANNEL1, DMA_CHN_PRI2, DMA_OPEN_MATCH);
 
 	DmaChnSetMatchPattern(DMA_CHANNEL1, EndOfTransmit);	// set \r as ending character
@@ -698,10 +701,7 @@ EnableADC10(); // Enable the ADC
 	// enable the chn
 	DmaChnEnable(DMA_CHANNEL1);
     
-     SpiChnOpen(SPI_CHANNEL2 , SPI_OPEN_ON | SPI_OPEN_MODE16 | SPI_OPEN_MSTEN | SPI_OPEN_CKE_REV , 2);
     
-        mPORTASetPinsDigitalOut(BIT_3);
-     mPORTASetBits(BIT_3);
 while (1){
       PT_SCHEDULE(protothread_timer(&pt_timer));
 
