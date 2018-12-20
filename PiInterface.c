@@ -81,8 +81,8 @@ enum ErrorStatus RecvStatus;
 static unsigned int sys_time_seconds =0;
 static char cRecvData[10];
 static char cTranData[10];
-static char cbuffer[20];
-static char cRecvChar;
+static char cbuffer[50];
+static unsigned char cRecvChar;
 static int iCheckSumValid=0;
 
 int iSampleCh[4],iSampleChBuf[4];
@@ -103,13 +103,17 @@ void printLine(int line_number, char* print_buffer, short text_color, short back
     tft_setTextSize(1);
     tft_writeString(print_buffer);
     int iNumSendChars = 0;
-    while (print_buffer[num_send_chars] != 0){
+    while (print_buffer[iNumSendChars] != '\0'){
         while(!UARTTransmitterIsReady(UART1));
         UARTSendDataByte(UART1, print_buffer[iNumSendChars]);
-        num_send_chars++;
+        iNumSendChars++;
     }
+    
+    iNumSendChars=0;
     while(!UARTTransmitterIsReady(UART1));
         UARTSendDataByte(UART1, '\n');
+        
+
 }
 
 
@@ -119,7 +123,7 @@ void vExec_Read_Input(char *cRecvData){
     tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Read Input",ReadInput);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-    sprintf(cbuffer,"Byte1  %02X  Read Bits B7.B6.B5.B4 if 1",cMSBbits);
+    sprintf(cbuffer,"Byte1  %02X  Read Bits B7.B6.B5.B4 if 1 ",cMSBbits);
     printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte2  %02X  Read Bits B3.B2.B1.B0 if 1",cLSBbits);
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
@@ -149,7 +153,7 @@ void vExec_DAC_SetA(char *cRecvData){
     printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte2  %02X  DAC LSB Bits B5.B4.B3.B2.B1.B0",cLSBbits);
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    iDACValue=((cMSBbits && 0x3f)<<6)|(cLSBbits && 0x3f);
+    iDACValue=((cMSBbits & 0x3f)<<6)|(cLSBbits & 0x3f);
     sprintf(cbuffer,"Set DAC A to %d", iDACValue);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
     mPORTBClearBits(BIT_11); // start transaction
@@ -170,7 +174,7 @@ void vExec_DAC_SetB(char *cRecvData){
     printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte2  %02X  DAC LSB Bits B5.B4.B3.B2.B1.B0",cLSBbits);
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    iDACValue=((cMSBbits && 0x3f)<<6)|(cLSBbits && 0x3f);
+    iDACValue=((cMSBbits & 0x3f)<<6)|(cLSBbits & 0x3f);
     sprintf(cbuffer,"Set DAC B to %d", iDACValue);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
     mPORTBClearBits(BIT_11); // start transaction
@@ -200,7 +204,7 @@ void vExec_Set_Samp_Freq(char *cRecvData){
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte3  %02X  Num of Samples LSB Bits B5.B4.B3.B2.B1.B0",cSampleLSBbits);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    iTotalNumOfADCSamples=((cSampleMSBbits && 0x3f)<<6)|(cSampleLSBbits && 0x3f);
+    iTotalNumOfADCSamples=((cSampleMSBbits & 0x3f)<<6)|(cSampleLSBbits & 0x3f);
     sprintf(cbuffer,"Set %dKhz Sample frequency and acquire &d samples", cSampleFreq,iTotalNumOfADCSamples);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     OpenTimer1(T1_ON | T1_SOURCE_INT | T1_PS_1_1, cSampleFreq<<10);
@@ -239,12 +243,12 @@ void vExec_Read_Buf(char *cRecvData){
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte3  %02X  Num of Samples LSB Bits B5.B4.B3.B2.B1.B0",cSampleLSBbits);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    iNumOfSamples=((cSampleMSBbits && 0x3f)<<6)|(cSampleLSBbits && 0x3f);
-    sprintf(cbuffer,"Read %d Samples from Buffer Number &d", iNumOfSamples,cBufferNum);
+    iNumOfSamples=((cSampleMSBbits & 0x3f)<<6)|(cSampleLSBbits & 0x3f);
+    sprintf(cbuffer,"Read %d Samples from Buffer Number %d", iNumOfSamples,cBufferNum);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
      for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
         while(!UARTTransmitterIsReady(UART2));
-        UARTSendDataByte(UART1, iBuffer[cBufferNum][iByteCount]);
+        UARTSendDataByte(UART2, iBuffer[cBufferNum][iByteCount]);
     }
 }
 
@@ -263,14 +267,14 @@ void vExec_Write_Buf(char *cRecvData){
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte3  %02X  Num of Samples LSB Bits B5.B4.B3.B2.B1.B0",cSampleLSBbits);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    iNumOfSamples=((cSampleMSBbits && 0x3f)<<6)|(cSampleLSBbits && 0x3f);
-    sprintf(cbuffer,"Write %d Samples to Buffer Number &d", iNumOfSamples,cBufferNum);
+    iNumOfSamples=((cSampleMSBbits & 0x3f)<<6)|(cSampleLSBbits & 0x3f);
+    sprintf(cbuffer,"Write %d Samples to Buffer Number %d", iNumOfSamples,cBufferNum);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
     
    
     for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
             while(!UARTReceivedDataIsAvailable(UART2));
-            iBuffer[cBufferNum][iByteCount]=iUARTGetDataByte(UART2);
+            iBuffer[cBufferNum][iByteCount]=UARTGetDataByte(UART2);
     }
 }
 
@@ -288,7 +292,7 @@ void vExec_Set_PWM_Per(char *cRecvData){
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte3  %02X  Period LSB Bits B5.B4.B3.B2.B1.B0",cPeriodLSBbits);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    iPeriod=((cPeriodMSBbits && 0x3f)<<10)|((cPeriodMLSBbits && 0x1f)<<5)|cPeriodLSBbits;
+    iPeriod=((cPeriodMSBbits & 0x3f)<<10)|((cPeriodMLSBbits & 0x1f)<<5)|cPeriodLSBbits;
     sprintf(cbuffer,"Set PWM Period to %d",iPeriod);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
     OpenTimer2(T2_ON | T2_SOURCE_INT | T2_PS_1_1, iPeriod);
@@ -316,7 +320,7 @@ void vExec_Start_PWM1(char *cRecvData){
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte3  %02X  On Time 1 LSB Bits B5.B4.B3.B2.B1.B0",cOnTime1LSBbits);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    iPWM1ONPeriod=((cOnTime1MSBbits && 0x3f)<<10)|((cOnTime1MLSBbits && 0x1f)<<5)|cOnTime1LSBbits;
+    iPWM1ONPeriod=((cOnTime1MSBbits & 0x3f)<<10)|((cOnTime1MLSBbits & 0x1f)<<5)|cOnTime1LSBbits;
     sprintf(cbuffer,"Set PWM Period to %d",iPWM1ONPeriod);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
     SetDCOC1PWM(iPWM1ONPeriod);
@@ -337,7 +341,7 @@ void vExec_Start_PWM2(char *cRecvData){
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte3  %02X  On Time 1 LSB Bits B5.B4.B3.B2.B1.B0",cOnTime2LSBbits);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    iPWM2ONPeriod=((cOnTime2MSBbits && 0x3f)<<10)|((cOnTime2MLSBbits && 0x1f)<<5)|cOnTime2LSBbits;
+    iPWM2ONPeriod=((cOnTime2MSBbits & 0x3f)<<10)|((cOnTime2MLSBbits & 0x1f)<<5)|cOnTime2LSBbits;
     sprintf(cbuffer,"Set PWM Period to %d",iPWM2ONPeriod);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
     SetDCOC4PWM(iPWM2ONPeriod); 
@@ -345,7 +349,7 @@ void vExec_Start_PWM2(char *cRecvData){
 
 int CheckSum(char *cRecvData, int iNumOfBytes, char iSum){
    
-    iCheckSumValid=1; 
+    return 1;
     
 }
 
@@ -354,12 +358,12 @@ void vSendErrorMsg(char RecvStatus){
 }
 
 
-void vSendRespMsg(char cCommand,char *cTansData)
+void vSendRespMsg(unsigned char cCommand,char *cTansData)
 {
      
 }
 
-int iNumOfDataBytes(char cRecvChar){
+int iNumOfDataBytes(unsigned char cRecvChar){
      switch(cRecvChar){
                         
                         
@@ -392,7 +396,7 @@ int iNumOfDataBytes(char cRecvChar){
     
 }
 
- void vExecuteCommand(char cCommand,char *cRecvData){
+ void vExecuteCommand(unsigned char cCommand,char *cRecvData){
      switch(cCommand){
                         
                         case(ReadInput):    vExec_Read_Input(cRecvData);     break;
@@ -427,12 +431,13 @@ int iNumOfDataBytes(char cRecvChar){
 
 void __ISR(_TIMER_1_VECTOR, ipl3) Timer1Handler(void){
 mT1ClearIntFlag();                                 // clear the interrupt flag
-int iChannelCount;
+int iChannelCount, iSampleCount;
     for(iChannelCount=0;iChannelCount<4;iChannelCount++){
         if(iNumOfADCSamples[iChannelCount]==iTotalNumOfADCSamples)
             iSampleCh[iChannelCount]=0;
         else if(iSampleCh[iChannelCount]){
-            iBuffer[iSampleChBuf][iNumOfADCSamples[iChannelCount]++]=ReadADC10(iChannelCount);
+            iSampleCount=(iNumOfADCSamples[iChannelCount])++;
+            iBuffer[iSampleChBuf[iChannelCount]][iSampleCount]=ReadADC10(iChannelCount);
         }
         
     }
@@ -443,24 +448,35 @@ static struct pt pt_uart_receive, pt_timer;
 
 static int iNumOfRecvBytes=0;
 static int iByteCount=0;
-static char cCommand;
+static unsigned char cCommand;
 
 static PT_THREAD (protothread_uart_receive(struct pt *pt))
 {
      PT_BEGIN(pt);
    
     while(1){
-        
-        PT_YIELD_UNTIL(pt, UARTReceivedDataIsAvailable(UART2));
+      while(!UARTReceivedDataIsAvailable(UART2));
+       // PT_YIELD_UNTIL(pt, UARTReceivedDataIsAvailable(UART1));
         cRecvChar = UARTGetDataByte(UART2);
+        //printf(cRecvChar);
         
-        if(RecvState==ACTIVE_WAIT_FOR_SOT && recv_char== StartOfTransmit){
+        
+        while(!UARTTransmitterIsReady(UART2));
+        UARTSendDataByte(UART2,cRecvChar );
+          while(!UARTTransmitterIsReady(UART2));
+        UARTSendDataByte(UART2,RecvState );
+          while(!UARTTransmitterIsReady(UART2));
+        UARTSendDataByte(UART2,RecvStatus );
+            while(!UARTTransmitterIsReady(UART2));
+        UARTSendDataByte(UART2,'\n' );
+        
+        if(RecvState==ACTIVE_WAIT_FOR_SOT && cRecvChar== 0xF0){
             RecvState=ACTIVE_PARSE;
             iCheckSumValid=0;
             RecvStatus=NoERR;
         }
         
-        else if (RecvState==ACTIVE_WAIT_FOR_EOT && recv_char== EndOfTransmit){
+        else if (RecvState==ACTIVE_WAIT_FOR_EOT && cRecvChar== EndOfTransmit){
                 if(RecvStatus==NoERR){
                     vExecuteCommand(cCommand,cRecvData);
                     vSendRespMsg(cCommand,cTranData);
@@ -487,7 +503,7 @@ static PT_THREAD (protothread_uart_receive(struct pt *pt))
                 else{
                     
                     for(iByteCount=0;iByteCount<iNumOfRecvBytes;iByteCount++){
-                            PT_YIELD_UNTIL(pt, UARTReceivedDataIsAvailable(UART2));
+                            while(!UARTReceivedDataIsAvailable(UART2));
                             cRecvData[iByteCount]=UARTGetDataByte(UART2);
                         }
                 }
@@ -508,7 +524,12 @@ static PT_THREAD (protothread_timer(struct pt *pt))
    
         PT_YIELD_TIME_msec(1000) ;
         sys_time_seconds++ ;
-    
+    tft_fillRoundRect(0, 220, 239, 8, 1, ILI9340_BLUE);// x,y,w,h,radius,color
+    tft_setTextColor(ILI9340_WHITE); 
+    tft_setCursor(0, 220);
+    tft_setTextSize(1);
+    sprintf(cbuffer,"Time = %d seconds",sys_time_seconds );
+    tft_writeString(cbuffer);
    
    PT_END(pt);
 
@@ -535,10 +556,10 @@ void Variable_Initialize(void){
     iSampleCh[1]=0;
     iSampleCh[2]=0;
     iSampleCh[3]=0;
-    iNumOfSamples[0]=0;
-    iNumOfSamples[1]=0;
-    iNumOfSamples[2]=0;
-    iNumOfSamples[3]=0;
+    iNumOfADCSamples[0]=0;
+    iNumOfADCSamples[1]=0;
+    iNumOfADCSamples[2]=0;
+    iNumOfADCSamples[3]=0;
     RecvState= ACTIVE_WAIT_FOR_SOT;  
  
 }
@@ -547,7 +568,7 @@ void Variable_Initialize(void){
 void main(){
 
   PT_setup();
- // PIN_MANAGER_Initialize();
+  PIN_MANAGER_Initialize();
   Variable_Initialize();
     
   // === setup system wide interrupts  ========
@@ -613,9 +634,19 @@ EnableADC10(); // Enable the ADC
   tft_init_hw();
   tft_begin();
   tft_fillScreen(ILI9340_BLACK);
-  sprintf(cbuffer,"Welcome to PIC & Pi Project\n");
+  sprintf(cbuffer,"Welcome to PIC & Pi Project Debug Window\n");
   printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-
+  char print_buffer[50]="Welcome to PIC & Pi Project Command Window\n";
+  int iNumSendChars = 0;
+    while (print_buffer[iNumSendChars] != '\0'){
+        while(!UARTTransmitterIsReady(UART2));
+        UARTSendDataByte(UART2, print_buffer[iNumSendChars]);
+        iNumSendChars++;
+    }
+    
+    iNumSendChars=0;
+    while(!UARTTransmitterIsReady(UART2));
+        UARTSendDataByte(UART2, '\n');
 while (1){
       PT_SCHEDULE(protothread_timer(&pt_timer));
       PT_SCHEDULE(protothread_uart_receive(&pt_uart_receive));
