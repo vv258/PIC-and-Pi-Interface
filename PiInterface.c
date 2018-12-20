@@ -7,6 +7,7 @@
 #include <plib.h>
 // serial stuff
 #include <stdio.h>
+#include <string.h>
 
 //=============================================================
 // 60 MHz
@@ -87,8 +88,8 @@ static int iCheckSumValid=0;
 
 int iSampleCh[4],iSampleChBuf[4];
 int iTotalNumOfADCSamples=0, iNumOfADCSamples[4];
-char tempbuf[20];
-char iBuffer[4][1024];
+static char tempbuf[2048];
+static char iBuffer[4][1024];
 char ReceiveBuf[256];
 void printLine(int line_number, char* print_buffer, short text_color, short back_color){
     // line number 0 to 31 
@@ -156,11 +157,12 @@ void vExec_DAC_SetA(char *cRecvData){
     iDACValue=((cMSBbits & 0x3f)<<6)|(cLSBbits & 0x3f);
     sprintf(cbuffer,"Set DAC A to %d", iDACValue);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    mPORTBClearBits(BIT_14); // start transaction
+    mPORTAClearBits(BIT_3); // start transaction
+        delay_ms(100);
     WriteSPI2( DAC_config_chan_A | (iDACValue));
     while (SPI2STATbits.SPIBUSY); // wait for end of transaction
                             // CS high
-    mPORTBSetBits(BIT_14); // end transaction
+    mPORTASetBits(BIT_3); // end transaction
 }
                         
 void vExec_DAC_SetB(char *cRecvData){
@@ -177,11 +179,13 @@ void vExec_DAC_SetB(char *cRecvData){
     iDACValue=((cMSBbits & 0x3f)<<6)|(cLSBbits & 0x3f);
     sprintf(cbuffer,"Set DAC B to %d", iDACValue);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    mPORTBClearBits(BIT_14); // start transaction
+    mPORTAClearBits(BIT_3); // start transaction
+    
+    delay_ms(100);
     WriteSPI2( DAC_config_chan_B | (iDACValue));
     while (SPI2STATbits.SPIBUSY); // wait for end of transaction
                             // CS high
-    mPORTBSetBits(BIT_14); // end transaction
+    mPORTASetBits(BIT_3); // end transaction
 }
     
 void vExec_Check_Buf(){
@@ -247,14 +251,13 @@ void vExec_Read_Buf(char *cRecvData){
     sprintf(cbuffer,"Read %d Samples from Buffer Number %d", iNumOfSamples,cBufferNum);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
     
-    
-
-
 
      for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
         while(!UARTTransmitterIsReady(UART2));
         UARTSendDataByte(UART2, iBuffer[cBufferNum][iByteCount]);
       //UARTSendDataByte(UART2, tempbuf[iByteCount]);
+
+    
      }
 }
 
@@ -277,38 +280,41 @@ void vExec_Write_Buf(char *cRecvData){
     sprintf(cbuffer,"Write %d Samples to Buffer Number %d", iNumOfSamples,cBufferNum);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
    
- /*   for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
+    for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
             while(!UARTReceivedDataIsAvailable(UART2));
             iBuffer[cBufferNum][iByteCount]=UARTGetDataByte(UART2);
     }
 
-   */ 
+   
 
-	
+	/*
 
-     
-    DmaChnOpen(DMA_CHANNEL2, 0, DMA_OPEN_DEFAULT);
-
+    DmaChnOpen(DMA_CHANNEL2, DMA_CHN_PRI3, DMA_OPEN_DEFAULT);
 
 	// set the events: we want the UART2 rx interrupt to start our transfer
-	// also we want to enable the pattern match: transfer stops upon detection of EOT
-	DmaChnSetEventControl(DMA_CHANNEL2, DMA_EV_START_IRQ(_UART2_RX_IRQ));
+	DmaChnSetEventControl(DMA_CHANNEL2,DMA_EV_START_IRQ_EN| DMA_EV_START_IRQ(_UART2_RX_IRQ));
 
 	// set the transfer source and dest addresses, source and dest sizes and the cell size
-	DmaChnSetTxfer(DMA_CHANNEL2, (void*)&U2RXREG, (char*)iBuffer, 1, iNumOfSamples, 1);
+	DmaChnSetTxfer(DMA_CHANNEL2, (void*)&U2RXREG, tempbuf, 1, iNumOfSamples, 1);
 
 	DmaChnSetEvEnableFlags(DMA_CHANNEL2, DMA_EV_BLOCK_DONE);		// enable the transfer done interrupt: pattern match or all the characters transferred
 
-	
+	char *Buf =&(iBuffer[cBufferNum][0]);
 	// enable the chn
 	DmaChnEnable(DMA_CHANNEL2);
     while(!DmaChnGetEvFlags(DMA_CHANNEL2));	// get the event flags
 	DmaChnClrEvFlags(DMA_CHANNEL2, DMA_EV_BLOCK_DONE);
 	DmaChnDisable(DMA_CHANNEL2);
-
+    memcpy(Buf,tempbuf,iNumOfSamples);
    
+     for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
+        
+      sprintf(cbuffer,"%X", tempbuf[iByteCount]);
+    printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
     
+     }
     
+    */
 }
 
 void vExec_Set_PWM_Per(char *cRecvData){
@@ -499,7 +505,7 @@ PPSInput(	3	,	IC1	    ,	RPA2	);
 PPSInput(	3	,	U1RX	,	RPA4	);
 PPSInput(	2	,	U2RX	,	RPB5	);
 PPSInput(	3	,	SDI2	,	RPB13	);
-PPSInput(	4	,	IC2	    ,	RPA3	);
+//PPSInput(	4	,	IC2	    ,	RPA3	);
 PPSOutput(	1	,	RPB7	,	U1TX	);
 PPSOutput(	1	,	RPB3	,	OC1	    );
 //PPSOutput(	4	,	RPB14	,	SS2	    );
@@ -694,8 +700,8 @@ EnableADC10(); // Enable the ADC
     
      SpiChnOpen(SPI_CHANNEL2 , SPI_OPEN_ON | SPI_OPEN_MODE16 | SPI_OPEN_MSTEN | SPI_OPEN_CKE_REV , 2);
     
-        mPORTBSetPinsDigitalOut(BIT_14);
-     mPORTBSetBits(BIT_14);
+        mPORTASetPinsDigitalOut(BIT_3);
+     mPORTASetBits(BIT_3);
 while (1){
       PT_SCHEDULE(protothread_timer(&pt_timer));
 
