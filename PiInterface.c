@@ -70,6 +70,11 @@ enum ErrorStatus RecvStatus;
 #define WriteInput      0x2B
 #define DACSetA         0x3A
 #define DACSetB         0x3B
+#define ConfigDACA      0x3C
+#define ConfigDACB      0x3D
+#define ConfigDACAB     0x3E
+#define StartDAC        0x3F
+#define StopDAC         0x39
 #define CheckBuf        0x4A
 #define SetSampFreq     0x4B
 #define StartADC        0x4C
@@ -88,8 +93,12 @@ static int iCheckSumValid=0;
 
 int iSampleCh[4],iSampleChBuf[4];
 int iTotalNumOfADCSamples=0, iNumOfADCSamples[4];
+int iTotalNumOfDACSamples=0;
 static char tempbuf[2048];
-static char iBuffer[4][1024];
+static char iBuffer[4][2048];
+
+short iDACBuf[2048];
+int iDACmode=0;
 char ReceiveBuf[256];
 void printLine(int line_number, char* print_buffer, short text_color, short back_color){
     // line number 0 to 31 
@@ -378,6 +387,120 @@ void vExec_Start_PWM2(char *cRecvData){
     SetDCOC4PWM(iPWM2ONPeriod*40); 
 }
 
+
+
+void vExec_DAC_ConfigA(char *cRecvData){
+    char cBufferNum= cRecvData[0];
+    iDACmode=cRecvData[1];
+    sprintf(cbuffer,"Command    %02X    Set Config DACA",ConfigDACA);
+    printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    sprintf(cbuffer,"Byte1  %02X  Source Buffer Number %d",cRecvData[0],cBufferNum);
+    printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    sprintf(cbuffer,"Byte2  %02X  DAC mode %d",cRecvData[1],cRecvData[1]);
+    printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    int *pDAC1= &(iBuffer[cBufferNum][0]);
+    int i=0;
+    CloseTimer3();
+    DmaChnDisable(DMA_CHANNEL3);
+    for(i=0;i<1024;i++){
+        iDACBuf[i]=DAC_config_chan_A|*pDAC1;
+        pDAC1++;
+        
+    }
+}
+
+void vExec_DAC_ConfigB(char *cRecvData){
+    char cBufferNum= cRecvData[0];
+    iDACmode=cRecvData[1];
+    sprintf(cbuffer,"Command    %02X    Set Config DACB",ConfigDACB);
+    printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    sprintf(cbuffer,"Byte1  %02X  Source Buffer Number %d",cRecvData[0],cBufferNum);
+    printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    sprintf(cbuffer,"Byte2  %02X  DAC mode %d",cRecvData[1],cRecvData[1]);
+    printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    CloseTimer3();
+    DmaChnDisable(DMA_CHANNEL3);
+    int *pDAC2= &(iBuffer[cBufferNum][0]);
+    int i=0;
+    for(i=0;i<1024;i++){
+        iDACBuf[i]=DAC_config_chan_B|*pDAC2;
+        pDAC2++;
+        
+    }
+}  
+void vExec_DAC_ConfigAB(char *cRecvData){
+    char cBufferA= cRecvData[0]>>2;
+    char cBufferB=cRecvData[0]&0xFC;    
+    iDACmode=cRecvData[1]+2;
+    sprintf(cbuffer,"Command    %02X    Set Config DAC A and B",ConfigDACAB);
+    printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    sprintf(cbuffer,"Byte1  %02X  Source Buffer NumberA %d Buffer NumberB %d",cRecvData[0],cBufferA,cBufferB);
+    printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    sprintf(cbuffer,"Byte2  %02X  DAC mode %d",cRecvData[1],cRecvData[1]);
+    printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    CloseTimer3();
+    DmaChnDisable(DMA_CHANNEL3);
+    int *pDAC1= &(iBuffer[cBufferA][0]);
+    int *pDAC2= &(iBuffer[cBufferB][0]);
+    int i=0;
+    for(i=0;i<2048;i+=2){
+        iDACBuf[i]=DAC_config_chan_A|*pDAC1;
+        iDACBuf[i+1]=DAC_config_chan_B|*pDAC2;
+        pDAC1++; 
+        pDAC2++;
+        
+    }
+}   
+void vExec_DAC_Start(char *cRecvData){
+    char cSampleFreq= cRecvData[0];
+    char cSampleMSBbits =cRecvData[1];
+    char cSampleLSBbits =cRecvData[2];
+  //  tft_fillScreen(ILI9340_BLACK);
+    sprintf(cbuffer,"Command    %02X    Set  Sample Frequency",SetSampFreq);
+    printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    sprintf(cbuffer,"Byte1  %02X  Sample Frequency %d Khz",cSampleFreq,cSampleFreq);
+    printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    sprintf(cbuffer,"Byte2  %02X  Num of Samples MSB Bits B11.B10.B9.B8.B7.B6",cSampleMSBbits);
+    printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    sprintf(cbuffer,"Byte3  %02X  Num of Samples LSB Bits B5.B4.B3.B2.B1.B0",cSampleLSBbits);
+    printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
+    iTotalNumOfDACSamples=((cSampleMSBbits & 0x3f)<<6)|(cSampleLSBbits & 0x3f);
+    sprintf(cbuffer,"Set %dKhz Sample frequency and acquire &d samples", cSampleFreq,iTotalNumOfDACSamples);
+    printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    
+    switch(iDACmode){
+        case 0:     OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_1, cSampleFreq<<10);
+                    DmaChnOpen(DMA_CHANNEL3, 0, DMA_OPEN_DEFAULT);
+                    DmaChnSetTxfer(DMA_CHANNEL3, iDACBuf, &SPI1BUF, iTotalNumOfDACSamples*2, 2, 2 );
+	                
+                    break;
+        case 1:     OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_1, cSampleFreq<<10);
+                    DmaChnOpen(DMA_CHANNEL3, 0, DMA_OPEN_AUTO);
+                    DmaChnSetTxfer(DMA_CHANNEL3, iDACBuf, &SPI1BUF, iTotalNumOfDACSamples*2, 2, 2 );
+                    break;
+        case 2:     OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_1, cSampleFreq<<11);
+                    DmaChnOpen(DMA_CHANNEL3, 0, DMA_OPEN_DEFAULT);
+                    DmaChnSetTxfer(DMA_CHANNEL3, iDACBuf, &SPI1BUF, iTotalNumOfDACSamples*4, 2, 2 );
+                    break;
+        case 3:     OpenTimer3(T3_ON | T3_SOURCE_INT | T3_PS_1_1, cSampleFreq<<11);
+                    DmaChnOpen(DMA_CHANNEL3, 0, DMA_OPEN_AUTO);
+                    DmaChnSetTxfer(DMA_CHANNEL3, iDACBuf, &SPI1BUF, iTotalNumOfDACSamples*4, 2, 2 );
+                    break;
+    }
+    DmaChnSetEventControl(DMA_CHANNEL3, DMA_EV_START_IRQ(_TIMER_3_IRQ));
+    DmaChnEnable(DMA_CHANNEL3);
+    ConfigIntTimer3(T3_INT_ON | T3_INT_PRIOR_2); 
+    mT3ClearIntFlag(); // and clear the interrupt flag 
+    
+}
+    
+void vExec_DAC_Stop(){
+    sprintf(cbuffer,"Command    %02X    Stop DAC",StopDAC);
+    printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    CloseTimer3();
+    DmaChnDisable(DMA_CHANNEL3);
+}
+
 int CheckSum(char *cRecvData, int iNumOfBytes, char iSum){
    
     return 1;
@@ -406,7 +529,17 @@ int iNumOfDataBytes(unsigned char cRecvChar){
                         
                         case(DACSetB):      return 2;
                         
-                        case(CheckBuf):     return 1;
+                        case(ConfigDACA):   return 2;
+                        
+                        case(ConfigDACB):   return 2;
+                        
+                        case(ConfigDACAB):  return 2;
+                        
+                        case(StartDAC):     return 3;
+                        
+                        case(StopDAC):      return 0;
+                        
+                        case(CheckBuf):     return 0;
                         
                         case(SetSampFreq):  return 3;
                         
@@ -437,7 +570,17 @@ int iNumOfDataBytes(unsigned char cRecvChar){
                         case(DACSetA):      vExec_DAC_SetA(cRecvData);       break;
                         
                         case(DACSetB):      vExec_DAC_SetB(cRecvData);       break;
+ 
+                        case(ConfigDACA):   vExec_DAC_ConfigA(cRecvData);    break;
                         
+                        case(ConfigDACB):   vExec_DAC_ConfigB(cRecvData);    break;
+                        
+                        case(ConfigDACAB):  vExec_DAC_ConfigAB(cRecvData);   break;
+                        
+                        case(StartDAC):     vExec_DAC_Start(cRecvData);      break;
+                        
+                        case(StopDAC):      vExec_DAC_Stop(cRecvData);       break;
+
                         case(CheckBuf):     vExec_Check_Buf();               break;
                         
                         case(SetSampFreq):  vExec_Set_Samp_Freq(cRecvData);  break;
