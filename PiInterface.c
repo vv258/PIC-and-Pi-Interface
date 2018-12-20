@@ -87,8 +87,8 @@ static int iCheckSumValid=0;
 
 int iSampleCh[4],iSampleChBuf[4];
 int iTotalNumOfADCSamples=0, iNumOfADCSamples[4];
-
-int iBuffer[4][1024];
+char tempbuf[20];
+char iBuffer[4][1024];
 char ReceiveBuf[256];
 void printLine(int line_number, char* print_buffer, short text_color, short back_color){
     // line number 0 to 31 
@@ -97,11 +97,11 @@ void printLine(int line_number, char* print_buffer, short text_color, short back
     int v_pos;
     v_pos = line_number * 10 ;
     // erase the pixels
-    tft_fillRoundRect(0, v_pos, 239, 8, 1, back_color);// x,y,w,h,radius,color
-    tft_setTextColor(text_color); 
-    tft_setCursor(0, v_pos);
-    tft_setTextSize(1);
-    tft_writeString(print_buffer);
+   // tft_fillRoundRect(0, v_pos, 239, 8, 1, back_color);// x,y,w,h,radius,color
+  //  tft_setTextColor(text_color); 
+  //  tft_setCursor(0, v_pos);
+  //  tft_setTextSize(1);
+  //  tft_writeString(print_buffer);
     int iNumSendChars = 0;
     while (print_buffer[iNumSendChars] != '\0'){
         while(!UARTTransmitterIsReady(UART1));
@@ -156,11 +156,11 @@ void vExec_DAC_SetA(char *cRecvData){
     iDACValue=((cMSBbits & 0x3f)<<6)|(cLSBbits & 0x3f);
     sprintf(cbuffer,"Set DAC A to %d", iDACValue);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    mPORTBClearBits(BIT_11); // start transaction
+    mPORTBClearBits(BIT_14); // start transaction
     WriteSPI2( DAC_config_chan_A | (iDACValue));
     while (SPI2STATbits.SPIBUSY); // wait for end of transaction
                             // CS high
-    mPORTBSetBits(BIT_11); // end transaction
+    mPORTBSetBits(BIT_14); // end transaction
 }
                         
 void vExec_DAC_SetB(char *cRecvData){
@@ -177,11 +177,11 @@ void vExec_DAC_SetB(char *cRecvData){
     iDACValue=((cMSBbits & 0x3f)<<6)|(cLSBbits & 0x3f);
     sprintf(cbuffer,"Set DAC B to %d", iDACValue);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    mPORTBClearBits(BIT_11); // start transaction
+    mPORTBClearBits(BIT_14); // start transaction
     WriteSPI2( DAC_config_chan_B | (iDACValue));
     while (SPI2STATbits.SPIBUSY); // wait for end of transaction
                             // CS high
-    mPORTBSetBits(BIT_11); // end transaction
+    mPORTBSetBits(BIT_14); // end transaction
 }
     
 void vExec_Check_Buf(){
@@ -254,7 +254,8 @@ void vExec_Read_Buf(char *cRecvData){
      for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
         while(!UARTTransmitterIsReady(UART2));
         UARTSendDataByte(UART2, iBuffer[cBufferNum][iByteCount]);
-    }
+      //UARTSendDataByte(UART2, tempbuf[iByteCount]);
+     }
 }
 
 void vExec_Write_Buf(char *cRecvData){
@@ -276,28 +277,44 @@ void vExec_Write_Buf(char *cRecvData){
     sprintf(cbuffer,"Write %d Samples to Buffer Number %d", iNumOfSamples,cBufferNum);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
    
-    for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
+ /*   for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
             while(!UARTReceivedDataIsAvailable(UART2));
             iBuffer[cBufferNum][iByteCount]=UARTGetDataByte(UART2);
     }
-  //  DmaChnOpen(DMA_CHANNEL2, DMA_CHN_PRI3, DMA_OPEN_DEFAULT);
-   	// set the transfer parameters: source & destination address, source & destination size, number of bytes per event
-    // Setting the last parameter to one makes the DMA output one byte/interrupt
-//    DmaChnSetTxfer(DMA_CHANNEL2, (void*)&U2RXREG, iBuffer[cBufferNum], 1,iNumOfSamples,1   );
-//	DmaChnSetEvEnableFlags(DMA_CHANNEL2, DMA_EV_BLOCK_DONE);		// enable the transfer done interrupt: pattern match or all the characters transferred
 
-	// set the transfer event control: what event is to start the DMA transfer
- //	DmaChnSetEventControl(DMA_CHANNEL2, DMA_EV_START_IRQ(_UART2_RX_IRQ));
-//	DmaChnEnable(DMA_CHANNEL2);
-      
-//DmaChnStartTxfer(DMA_CHANNEL2,  DMA_WAIT_BLOCK,0);
- //   while(!DmaChnGetEvFlags(DMA_CHANNEL2)& DMA_EV_BLOCK_DONE);
+   */ 
+
+	
+
+     
+    DmaChnOpen(DMA_CHANNEL2, 0, DMA_OPEN_DEFAULT);
+
+
+	// set the events: we want the UART2 rx interrupt to start our transfer
+	// also we want to enable the pattern match: transfer stops upon detection of EOT
+	DmaChnSetEventControl(DMA_CHANNEL2, DMA_EV_START_IRQ(_UART2_RX_IRQ));
+
+	// set the transfer source and dest addresses, source and dest sizes and the cell size
+	DmaChnSetTxfer(DMA_CHANNEL2, (void*)&U2RXREG, (char*)iBuffer, 1, iNumOfSamples, 1);
+
+	DmaChnSetEvEnableFlags(DMA_CHANNEL2, DMA_EV_BLOCK_DONE);		// enable the transfer done interrupt: pattern match or all the characters transferred
+
+	
+	// enable the chn
+	DmaChnEnable(DMA_CHANNEL2);
+    while(!DmaChnGetEvFlags(DMA_CHANNEL2));	// get the event flags
+	DmaChnClrEvFlags(DMA_CHANNEL2, DMA_EV_BLOCK_DONE);
+	DmaChnDisable(DMA_CHANNEL2);
+
+   
+    
+    
 }
 
 void vExec_Set_PWM_Per(char *cRecvData){
     char cPeriodMSBbits= cRecvData[0];
     char cPeriodLSBbits =cRecvData[1];
-    unsigned int iPeriod;
+     int iPeriod;
     tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set  PWM Period",SetPWMPer);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
@@ -305,14 +322,15 @@ void vExec_Set_PWM_Per(char *cRecvData){
     printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte2  %02X  Period LSB Bits B5.B4.B3.B2.B1.B0",cPeriodLSBbits);
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-    iPeriod=(((cPeriodMSBbits & 0x1f)<<5)|cPeriodLSBbits)*40;
+    iPeriod=(((cPeriodMSBbits & 0x1f)<<5)|cPeriodLSBbits);
     sprintf(cbuffer,"Set PWM Period to %d ms",iPeriod);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    OpenTimer2(T2_ON | T2_SOURCE_INT | T2_PS_1_1, iPeriod);
-    ConfigIntTimer2(T2_INT_ON | T2_INT_PRIOR_2); 
-    mT2ClearIntFlag(); // and clear the interrupt flag 
-    OpenOC1(OC_ON | OC_TIMER2_SRC | OC_PWM_FAULT_PIN_DISABLE , iPeriod, iPeriod); // 
-    OpenOC4(OC_ON | OC_TIMER2_SRC | OC_PWM_FAULT_PIN_DISABLE , iPeriod, iPeriod); // 
+  //  delay_ms(100);
+    OpenTimer2(T2_ON | T2_SOURCE_INT | T2_PS_1_1, iPeriod*40);
+   // ConfigIntTimer2(T2_INT_ON | T2_INT_PRIOR_2); 
+ //   mT2ClearIntFlag(); // and clear the interrupt flag 
+    OpenOC1(OC_ON | OC_TIMER2_SRC | OC_PWM_FAULT_PIN_DISABLE , 0, iPeriod); // 
+    OpenOC4(OC_ON | OC_TIMER2_SRC | OC_PWM_FAULT_PIN_DISABLE , 0, iPeriod); // 
 
 
 } 
@@ -330,10 +348,10 @@ void vExec_Start_PWM1(char *cRecvData){
     printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte2  %02X  On Time 1 LSB Bits B5.B4.B3.B2.B1.B0",cOnTime1LSBbits);
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-    iPWM1ONPeriod=(((cOnTime1MSBbits & 0x1f)<<5)|cOnTime1LSBbits)*40;
+    iPWM1ONPeriod=(((cOnTime1MSBbits & 0x1f)<<5)|cOnTime1LSBbits);
     sprintf(cbuffer,"Set PWM Period to %d ms",iPWM1ONPeriod);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    SetDCOC1PWM(iPWM1ONPeriod);
+    SetDCOC1PWM(iPWM1ONPeriod*40);
 
 }
     
@@ -342,16 +360,16 @@ void vExec_Start_PWM2(char *cRecvData){
     char cOnTime2LSBbits =cRecvData[1];
     int iPWM2ONPeriod;
     tft_fillScreen(ILI9340_BLACK);
-    sprintf(cbuffer,"Command    %02X    Set  PWM 1",StartPWM2);
+    sprintf(cbuffer,"Command    %02X    Set  PWM 2",StartPWM2);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte1  %02X  On Time 1 MSB B11.B10.B9.B8.B7.B6",cOnTime2MSBbits);
     printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte2  %02X  On Time 1 LSB B5.B4.B3.B2.B1.B0",cOnTime2LSBbits);
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-    iPWM2ONPeriod=(((cOnTime2LSBbits & 0x1f)<<5)|cOnTime2LSBbits)*40;
+    iPWM2ONPeriod=(((cOnTime2MSBbits & 0x1f)<<5)|cOnTime2LSBbits);
     sprintf(cbuffer,"Set PWM Period to %d",iPWM2ONPeriod);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    SetDCOC4PWM(iPWM2ONPeriod); 
+    SetDCOC4PWM(iPWM2ONPeriod*40); 
 }
 
 int CheckSum(char *cRecvData, int iNumOfBytes, char iSum){
@@ -484,7 +502,7 @@ PPSInput(	3	,	SDI2	,	RPB13	);
 PPSInput(	4	,	IC2	    ,	RPA3	);
 PPSOutput(	1	,	RPB7	,	U1TX	);
 PPSOutput(	1	,	RPB3	,	OC1	    );
-PPSOutput(	4	,	RPB14	,	SS2	    );
+//PPSOutput(	4	,	RPB14	,	SS2	    );
 PPSOutput(	4	,	RPB10	,	U2TX	);
 PPSOutput(	3	,	RPB2	,	OC4	    );
 PPSOutput(	2	,	RPB11	,	SDO2	); 
@@ -630,9 +648,9 @@ EnableADC10(); // Enable the ADC
   PT_INIT(&pt_timer);
   PT_INIT(&pt_uart_receive);
   // init the display
-  tft_init_hw();
-  tft_begin();
-  tft_fillScreen(ILI9340_BLACK);
+  //tft_init_hw();
+  //tft_begin();
+  //tft_fillScreen(ILI9340_BLACK);
   sprintf(cbuffer,"Welcome to PIC & Pi Project Debug Window\n");
   printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
   char print_buffer[50]="Welcome to PIC & Pi Project Command Window\n";
@@ -674,8 +692,10 @@ EnableADC10(); // Enable the ADC
 	// enable the chn
 	DmaChnEnable(DMA_CHANNEL1);
     
+     SpiChnOpen(SPI_CHANNEL2 , SPI_OPEN_ON | SPI_OPEN_MODE16 | SPI_OPEN_MSTEN | SPI_OPEN_CKE_REV , 2);
     
-    
+        mPORTBSetPinsDigitalOut(BIT_14);
+     mPORTBSetBits(BIT_14);
 while (1){
       PT_SCHEDULE(protothread_timer(&pt_timer));
 
