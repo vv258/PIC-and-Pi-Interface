@@ -243,7 +243,7 @@ void vExec_Read_Buf(char *cRecvData){
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte3  %02X  Num of Samples LSB Bits B5.B4.B3.B2.B1.B0",cSampleLSBbits);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    iNumOfSamples=((cSampleMSBbits & 0x3f)<<6)|(cSampleLSBbits & 0x3f);
+    iNumOfSamples=((cSampleMSBbits & 0x1f)<<5)|(cSampleLSBbits & 0x1f);
     sprintf(cbuffer,"Read %d Samples from Buffer Number %d", iNumOfSamples,cBufferNum);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
     
@@ -272,20 +272,26 @@ void vExec_Write_Buf(char *cRecvData){
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte3  %02X  Num of Samples LSB Bits B5.B4.B3.B2.B1.B0",cSampleLSBbits);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    iNumOfSamples=((cSampleMSBbits & 0x3f)<<6)|(cSampleLSBbits & 0x3f);
+    iNumOfSamples=((cSampleMSBbits & 0x1f)<<5)|(cSampleLSBbits & 0x1f);
     sprintf(cbuffer,"Write %d Samples to Buffer Number %d", iNumOfSamples,cBufferNum);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    
+   
+    for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
+            while(!UARTReceivedDataIsAvailable(UART2));
+            iBuffer[cBufferNum][iByteCount]=UARTGetDataByte(UART2);
+    }
+  //  DmaChnOpen(DMA_CHANNEL2, DMA_CHN_PRI3, DMA_OPEN_DEFAULT);
    	// set the transfer parameters: source & destination address, source & destination size, number of bytes per event
     // Setting the last parameter to one makes the DMA output one byte/interrupt
-    DmaChnSetTxfer(DMA_CHANNEL2, (void*)&U2RXREG, iBuffer[cBufferNum], iNumOfSamples*2, 1, 1 );
+//    DmaChnSetTxfer(DMA_CHANNEL2, (void*)&U2RXREG, iBuffer[cBufferNum], 1,iNumOfSamples,1   );
+//	DmaChnSetEvEnableFlags(DMA_CHANNEL2, DMA_EV_BLOCK_DONE);		// enable the transfer done interrupt: pattern match or all the characters transferred
 
 	// set the transfer event control: what event is to start the DMA transfer
-    // In this case, timer2
-	DmaChnSetEventControl(DMA_CHANNEL2, DMA_EV_START_IRQ(_UART2_RX_IRQ));
-    DmaChnOpen(DMA_CHANNEL2, 0, DMA_OPEN_DEFAULT);
-    
-    
+ //	DmaChnSetEventControl(DMA_CHANNEL2, DMA_EV_START_IRQ(_UART2_RX_IRQ));
+//	DmaChnEnable(DMA_CHANNEL2);
+      
+//DmaChnStartTxfer(DMA_CHANNEL2,  DMA_WAIT_BLOCK,0);
+ //   while(!DmaChnGetEvFlags(DMA_CHANNEL2)& DMA_EV_BLOCK_DONE);
 }
 
 void vExec_Set_PWM_Per(char *cRecvData){
@@ -315,7 +321,7 @@ void vExec_Set_PWM_Per(char *cRecvData){
 
 void vExec_Start_PWM1(char *cRecvData){
     char cOnTime1MSBbits= cRecvData[0];
-    char cOnTime1MLSBbits =cRecvData[1];
+    char cOnTime1LSBbits =cRecvData[1];
     int iPWM1ONPeriod;
     tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set  PWM 1",StartPWM1);
@@ -333,7 +339,7 @@ void vExec_Start_PWM1(char *cRecvData){
     
 void vExec_Start_PWM2(char *cRecvData){
     char cOnTime2MSBbits= cRecvData[0];
-    char cOnTime2MLSBbits =cRecvData[1];
+    char cOnTime2LSBbits =cRecvData[1];
     int iPWM2ONPeriod;
     tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set  PWM 1",StartPWM2);
@@ -342,7 +348,7 @@ void vExec_Start_PWM2(char *cRecvData){
     printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte2  %02X  On Time 1 LSB B5.B4.B3.B2.B1.B0",cOnTime2LSBbits);
     printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-    iPWM2ONPeriod=(((cOnTime2MLSBbits & 0x1f)<<5)|cOnTime2LSBbits)*40;
+    iPWM2ONPeriod=(((cOnTime2LSBbits & 0x1f)<<5)|cOnTime2LSBbits)*40;
     sprintf(cbuffer,"Set PWM Period to %d",iPWM2ONPeriod);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
     SetDCOC4PWM(iPWM2ONPeriod); 
@@ -501,7 +507,7 @@ void Variable_Initialize(void){
 // handler for the DMA channel 1 interrupt
 void __ISR(_DMA1_VECTOR, IPL5SOFT) DmaHandler1(void)
 {
-
+    DmaChnDisable(DMA_CHANNEL1);
 	INTClearFlag(INT_SOURCE_DMA(DMA_CHANNEL1));	// release the interrupt in the INT controller, we're servicing int
 
     int iByte=0;
