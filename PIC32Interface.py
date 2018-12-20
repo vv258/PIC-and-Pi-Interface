@@ -39,7 +39,8 @@ def SendCommand(Command):
     TransArray.append(EndOfTransmit)
     for cmd_byte in  TransArray:
         hex_byte = ("{0:02x}".format(cmd_byte))
-        time.sleep(0.1)
+        time.sleep(0.04)
+        #print(hex_byte)
         ser.write(bytearray.fromhex(hex_byte))
             
 def WriteBuffer(BufNum, Data):
@@ -47,12 +48,14 @@ def WriteBuffer(BufNum, Data):
     DataLengthMSB,DataLengthLSB=divmod(DataLength,32)
     Command = [WriteBuf,BufNum,DataLengthMSB,DataLengthLSB]
     SendCommand(Command)
+    #time.sleep(0.1)
 
     for i in range(0,DataLength):
         hex_byte = ("{0:02x}".format(Data[i]))
-        time.sleep(0.1)
+        time.sleep(0.04)
+        #print(hex_byte)
         ser.write(bytearray.fromhex(hex_byte))
-        
+                        
 def ReadBuffer(BufNum, DataLength):
     DataLengthMSB,DataLengthLSB=divmod(DataLength,32)
     Command = [ReadBuf,BufNum,DataLengthMSB,DataLengthLSB]
@@ -65,3 +68,41 @@ def ReadBuffer(BufNum, DataLength):
         Data.append(data_byte)    
     return Data
 
+def SetPWMPeriod(Period):
+    PeriodMSB,PeriodLSB=divmod(Period,32)
+    Command =[SetPWMPer,PeriodMSB,PeriodLSB]
+    SendCommand(Command)
+
+def EnablePWM1(OnTime):
+    OntimeMSB,OnTimeLSB=divmod(OnTime,32)
+    Command =[StartPWM1,OntimeMSB,OnTimeLSB]
+    SendCommand(Command)
+    
+def EnablePWM2(OnTime):
+    OntimeMSB,OnTimeLSB=divmod(OnTime,32)
+    Command =[StartPWM2,OntimeMSB,OnTimeLSB]
+    SendCommand(Command)
+    
+def SetDACA(DacVal):
+    DacValMSB,DacValLSB=divmod(DacVal,64)
+    Command =[DACSetA,DacValMSB,DacValLSB]
+    SendCommand(Command)
+    
+def SetDACB(DacVal):
+    DacValMSB,DacValLSB=divmod(DacVal,64)
+    Command =[DACSetB,DacValMSB,DacValLSB]
+    SendCommand(Command)
+    
+def CheckBufferStatus():
+    Command = [CheckBuf]
+    SendCommand(Command)
+
+def _StartADC_( Channel,Buffer ):
+    ChannelAndBuffer = 0b0011111111 & Channel | Buffer
+    Command = [StartADC,ChannelAndBuffer]
+    SendCommand(Command)
+
+def _SetSampleFreq_( PrescalerSetting, SampleVal ):
+    SampleValMSB,SampleValLSB = divmod( SampleVal, 32 )
+    Command = [ SetSampFreq, PrescalerSetting, SampleValMSB,SampleValLSB ]
+    SendCommand(Command)
