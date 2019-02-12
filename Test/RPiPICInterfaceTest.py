@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../')
 import PIC32Interface
 import time
 sleeptime=0.4
