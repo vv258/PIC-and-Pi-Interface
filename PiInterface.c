@@ -90,6 +90,8 @@ static char cTranData[10];
 static char cbuffer[50];
 static unsigned char cRecvChar;
 static int iCheckSumValid=0;
+static unsigned char GPIOIN;
+
 
 int iSampleCh[4],iSampleChBuf[4];
 int iTotalNumOfADCSamples=0, iNumOfADCSamples[4];
@@ -128,15 +130,12 @@ void printLine(int line_number, char* print_buffer, short text_color, short back
 
 
 void vExec_Read_Input(char *cRecvData){
-    char cMSBbits =cRecvData[0];
-    char cLSBbits =cRecvData[1];
    // tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Read Input",ReadInput);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-    sprintf(cbuffer,"Byte1  %02X  Read Bits B7.B6.B5.B4 if 1 ",cMSBbits);
-    printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-    sprintf(cbuffer,"Byte2  %02X  Read Bits B3.B2.B1.B0 if 1",cLSBbits);
-    printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+    GPIOIN = readPE(GPIOZ);
+    cTranData[0]= (0xF0 & GPIOIN)>>4;
+    cTranData[1]= 0x0F & GPIOIN;
 
 }
 
@@ -149,7 +148,10 @@ void vExec_Write_Input(char *cRecvData){
     sprintf(cbuffer,"Byte1  %02X  Write Bits B7.B6.B5.B4 if 1",cMSBbits);
     printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
     sprintf(cbuffer,"Byte2  %02X  Write Bits B3.B2.B1.B0 if 1",cLSBbits);
-    printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);    
+    printLine(4, cbuffer, ILI9340_WHITE, ILI9340_BLUE);     
+    writePE(GPIOY, cRecvData[0]<<4 | cRecvData[1]);
+
+    
 }
 
 void vExec_DAC_SetA(char *cRecvData){
@@ -519,15 +521,32 @@ void vSendErrorMsg(char RecvStatus){
 
 
 void vSendRespMsg(unsigned char cCommand,char *cTansData)
-{
-     
+{   
+    
+    while(!UARTTransmitterIsReady(UART2));
+    UARTSendDataByte(UART2,SOT);
+    
+    while(!UARTTransmitterIsReady(UART2));
+    UARTSendDataByte(UART2,cCommand);
+    
+     switch(cCommand){
+         case (ReadInput):  while(!UARTTransmitterIsReady(UART2));
+                            UARTSendDataByte(UART2,cTansData[0]);
+                            while(!UARTTransmitterIsReady(UART2));
+                            UARTSendDataByte(UART2,cTansData[1]);
+                            break;
+             
+             
+     }
+    while(!UARTTransmitterIsReady(UART2));
+                            UARTSendDataByte(UART2,EOT);
 }
 
 int iNumOfDataBytes(unsigned char cRecvChar){
      switch(cRecvChar){
                         
                         
-                        case(ReadInput):    return 2;
+                        case(ReadInput):    return 0;
                         
                         case(WriteInput):   return 2;
                         
@@ -650,18 +669,28 @@ static PT_THREAD (protothread_timer(struct pt *pt))
 
 void PIN_MANAGER_Initialize(void)
 {
-PPSInput(	3	,	IC1	    ,	RPA2	);
+//PPSInput(	3	,	IC1	    ,	RPA2	);
 PPSInput(	3	,	U1RX	,	RPA4	);
 PPSInput(	2	,	U2RX	,	RPB5	);
-PPSInput(	3	,	SDI2	,	RPB13	);
+//PPSInput(	3	,	SDI2	,	RPB13	);
 //PPSInput(	4	,	IC2	    ,	RPA3	);
 PPSOutput(	1	,	RPB7	,	U1TX	);
 PPSOutput(	1	,	RPB3	,	OC1	    );
-PPSOutput(	4	,	RPB14	,	SS2	    );
+PPSOutput(	4	,	RPB9	,	SS2	    );
 PPSOutput(	4	,	RPB10	,	U2TX	);
 PPSOutput(	3	,	RPB2	,	OC4	    );
 PPSOutput(	2	,	RPB11	,	SDO2	); 
     
+//PPSInput(	2	,	SDI1	,	RPB8	);
+//PPSOutput(	3	,	RPA2	,	SDO1	); 
+
+
+
+//SCK2 -> RB15
+//SCK1 -> RB14
+//SS1 -> RB13
+
+
 }
 
 void Variable_Initialize(void){
@@ -798,9 +827,20 @@ OpenADC10( PARAM1, PARAM2, PARAM3, PARAM4, PARAM5 ); // configure ADC using the 
 
 EnableADC10(); // Enable the ADC
 SpiChnOpen(SPI_CHANNEL2, SPI_OPEN_ON | SPI_OPEN_MODE16 | SPI_OPEN_MSTEN | SPI_OPEN_CKE_REV | SPICON_FRMEN | SPICON_FRMPOL, 4);    
-        mPORTASetPinsDigitalOut(BIT_3);
-     mPORTASetBits(BIT_3);
-       
+
+//GPIO INIT
+//mPORTASetPinsDigitalOut(BIT_3);
+//mPORTASetBits(BIT_3);
+ 
+//Port Expander
+  initPE();
+  // Outputs
+  mPortYSetPinsOut(BIT_7 | BIT_6 | BIT_5 | BIT_4 |BIT_3 | BIT_2 |BIT_1 | BIT_0 );
+  // Inputs
+  mPortZSetPinsIn(BIT_7 | BIT_6 | BIT_5 | BIT_4 |BIT_3 | BIT_2 |BIT_1 | BIT_0 );
+  // Input pull up resistors
+  mPortZEnablePullUp(BIT_7 | BIT_6 | BIT_5 | BIT_4 |BIT_3 | BIT_2 |BIT_1 | BIT_0) ;
+
     
     
   PT_INIT(&pt_timer);

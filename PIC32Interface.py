@@ -40,7 +40,7 @@ def SendCommand(Command):
     for cmd_byte in  TransArray:
         hex_byte = ("{0:02x}".format(cmd_byte))
         time.sleep(0.04)
-        #print(hex_byte)
+        print(hex_byte)
         ser.write(bytearray.fromhex(hex_byte))
             
 def WriteBuffer(BufNum, Data):
@@ -53,8 +53,11 @@ def WriteBuffer(BufNum, Data):
     for i in range(0,DataLength):
         hex_byte = ("{0:02x}".format(Data[i]))
         time.sleep(0.04)
-        #print(hex_byte)
+        print(hex_byte)
         ser.write(bytearray.fromhex(hex_byte))
+    
+    data_bytes=ser.read(3)
+
                         
 def ReadBuffer(BufNum, DataLength):
     DataLengthMSB,DataLengthLSB=divmod(DataLength,32)
@@ -67,42 +70,77 @@ def ReadBuffer(BufNum, DataLength):
     for data_byte in resp_bytes:
         Data.append(data_byte)    
     return Data
+    data_bytes=ser.read(3)
+
 
 def SetPWMPeriod(Period):
     PeriodMSB,PeriodLSB=divmod(Period,32)
     Command =[SetPWMPer,PeriodMSB,PeriodLSB]
     SendCommand(Command)
+    data_bytes=ser.read(3)
+
 
 def EnablePWM1(OnTime):
     OntimeMSB,OnTimeLSB=divmod(OnTime,32)
     Command =[StartPWM1,OntimeMSB,OnTimeLSB]
     SendCommand(Command)
+    data_bytes=ser.read(3)
+
     
 def EnablePWM2(OnTime):
     OntimeMSB,OnTimeLSB=divmod(OnTime,32)
     Command =[StartPWM2,OntimeMSB,OnTimeLSB]
     SendCommand(Command)
+    data_bytes=ser.read(3)
+
     
 def SetDACA(DacVal):
     DacValMSB,DacValLSB=divmod(DacVal,64)
     Command =[DACSetA,DacValMSB,DacValLSB]
     SendCommand(Command)
+    data_bytes=ser.read(3)
+
     
 def SetDACB(DacVal):
     DacValMSB,DacValLSB=divmod(DacVal,64)
     Command =[DACSetB,DacValMSB,DacValLSB]
     SendCommand(Command)
+    data_bytes=ser.read(3)
+
     
 def CheckBufferStatus():
     Command = [CheckBuf]
     SendCommand(Command)
+    data_bytes=ser.read(3)
+
 
 def _StartADC_( Channel,Buffer ):
     ChannelAndBuffer = 0b0011111111 & Channel | Buffer
     Command = [StartADC,ChannelAndBuffer]
     SendCommand(Command)
+    data_bytes=ser.read(3)
+
 
 def _SetSampleFreq_( PrescalerSetting, SampleVal ):
     SampleValMSB,SampleValLSB = divmod( SampleVal, 32 )
     Command = [ SetSampFreq, PrescalerSetting, SampleValMSB,SampleValLSB ]
     SendCommand(Command)
+    data_bytes=ser.read(3)
+
+def WriteGPIO(data):
+    DataValMSB,DataValLSB = divmod( data, 16 )
+    Command = [ WriteInput, DataValMSB, DataValLSB ]
+    SendCommand(Command)
+    data_bytes=ser.read(3)
+
+
+def ReadGPIO():
+    DataValMSB,DataValLSB = divmod( data, 16 )
+    Command = [ ReadInput ]
+    SendCommand(Command)
+    data_bytes=ser.read(5)
+    data_bytes_hex=data_bytes.encode('hex')
+    gpio_bytes = bytearray.fromhex(data_bytes_hex)
+    ReadVal=gpio_bytes(2)*16+gpio_bytes(3);
+    return ReadVal
+    
