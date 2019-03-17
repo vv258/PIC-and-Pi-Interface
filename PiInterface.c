@@ -8,7 +8,7 @@
 // serial stuff
 #include <stdio.h>
 #include <string.h>
-
+#include "port_expanderpicandpi.h"
 //=============================================================
 // 60 MHz
 #pragma config FNOSC = FRCPLL, POSCMOD = OFF
@@ -220,9 +220,10 @@ void vExec_Set_Samp_Freq(char *cRecvData){
     sprintf(cbuffer,"Byte3  %02X  Num of Samples LSB Bits B5.B4.B3.B2.B1.B0",cSampleLSBbits);
     printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
     iTotalNumOfADCSamples=((cSampleMSBbits & 0x3f)<<6)|(cSampleLSBbits & 0x3f);
-    sprintf(cbuffer,"Set %dKhz Sample frequency and acquire &d samples", cSampleFreq,iTotalNumOfADCSamples);
+    sprintf(cbuffer,"Set %dKhz Sample frequency and acquire %d samples", cSampleFreq,iTotalNumOfADCSamples);
     printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-    OpenTimer1(T1_ON | T1_SOURCE_INT | T1_PS_1_1, cSampleFreq<<10);
+    int timer_count=(sys_clock/(1000*cSampleFreq));
+    OpenTimer1(T1_ON | T1_SOURCE_INT | T1_PS_1_1,timer_count );
     ConfigIntTimer1(T1_INT_ON | T1_INT_PRIOR_2); 
     mT1ClearIntFlag(); // and clear the interrupt flag 
     
@@ -230,16 +231,15 @@ void vExec_Set_Samp_Freq(char *cRecvData){
                         
 void vExec_Start_ADC(char *cRecvData){
     char cChannel= cRecvData[0]>>2;
-    char cBuffer=cRecvData[0]&0xFC;
+    char cBuffer=cRecvData[0]&0x03;
    // tft_fillScreen(ILI9340_BLACK);
     sprintf(cbuffer,"Command    %02X    Set Start ADC",StartADC);
     printLine(0, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-    sprintf(cbuffer,"Byte1  %02X  Channel Number %d Buffer Numer %d",cRecvData,cChannel,cBuffer);
+    sprintf(cbuffer,"Byte1  %02X  Channel Number %d Buffer Numer %d",cRecvData[0],cChannel,cBuffer);
     printLine(2, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
-    sprintf(cbuffer,"Start ACquisition in Channel no %d",cChannel,cChannel);
-    printLine(6, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
     iSampleCh[cChannel]=1;
     iSampleChBuf[cChannel]=cBuffer;
+    iNumOfADCSamples[cChannel]=0;
 
 }
                         
@@ -524,7 +524,7 @@ void vSendRespMsg(unsigned char cCommand,char *cTansData)
 {   
     
     while(!UARTTransmitterIsReady(UART2));
-    UARTSendDataByte(UART2,SOT);
+    UARTSendDataByte(UART2,StartOfTransmit);
     
     while(!UARTTransmitterIsReady(UART2));
     UARTSendDataByte(UART2,cCommand);
@@ -539,7 +539,7 @@ void vSendRespMsg(unsigned char cCommand,char *cTansData)
              
      }
     while(!UARTTransmitterIsReady(UART2));
-                            UARTSendDataByte(UART2,EOT);
+                            UARTSendDataByte(UART2,EndOfTransmit);
 }
 
 int iNumOfDataBytes(unsigned char cRecvChar){
@@ -629,14 +629,22 @@ int iNumOfDataBytes(unsigned char cRecvChar){
 
 
 void __ISR(_TIMER_1_VECTOR, ipl3) Timer1Handler(void){
-mT1ClearIntFlag();                                 // clear the interrupt flag
+mT1ClearIntFlag();  
+mPORTBToggleBits(BIT_4);// 
+ AcquireADC10();
 int iChannelCount, iSampleCount;
     for(iChannelCount=0;iChannelCount<4;iChannelCount++){
         if(iNumOfADCSamples[iChannelCount]==iTotalNumOfADCSamples)
             iSampleCh[iChannelCount]=0;
         else if(iSampleCh[iChannelCount]){
             iSampleCount=(iNumOfADCSamples[iChannelCount])++;
-            iBuffer[iSampleChBuf[iChannelCount]][iSampleCount]=ReadADC10(iChannelCount);
+            short *buffer_ptr=(short *)(iBuffer[iSampleChBuf[iChannelCount]]);
+           unsigned short adc_val=ReadADC10(iChannelCount);;
+            *(buffer_ptr+iSampleCount)=adc_val;
+              sprintf(cbuffer,"%d Sample value %d ", iSampleCount,adc_val);
+               printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE);
+            
+          //  iBuffer[iSampleChBuf[iChannelCount]][iSampleCount]=ReadADC10(iChannelCount);
         }
         
     }
@@ -789,7 +797,9 @@ void main(){
   UARTSetLineControl(UART2, UART_DATA_SIZE_8_BITS | UART_PARITY_NONE | UART_STOP_BITS_1);
   UARTSetDataRate(UART2, pb_clock, ComBaudRate);
   UARTEnable(UART2, UART_ENABLE_FLAGS(UART_PERIPHERAL | UART_RX | UART_TX));
-  
+   
+  ANSELA =0;
+  ANSELB =0; 
  // the ADC ///////////////////////////////////////
 // configure and enable the ADC
 CloseADC10(); // ensure the ADC is off before setting the configuration
@@ -799,18 +809,17 @@ CloseADC10(); // ensure the ADC is off before setting the configuration
 // ADC_CLK_AUTO -- Internal counter ends sampling and starts conversion (Auto convert)
 // ADC_AUTO_SAMPLING_ON -- Sampling begins immediately after last conversion completes; SAMP bit is automatically set
 // ADC_AUTO_SAMPLING_OFF -- Sampling begins with AcquireADC10();
-#define PARAM1  ADC_FORMAT_INTG16 | ADC_CLK_AUTO | ADC_AUTO_SAMPLING_ON //
+    #define PARAM1  ADC_FORMAT_INTG16 | ADC_CLK_AUTO | ADC_AUTO_SAMPLING_OFF //
 
 // define setup parameters for OpenADC10
 // ADC ref external  | disable offset test | disable scan mode | do 2 sample | use single buf | alternate mode on
-#define PARAM2  ADC_VREF_AVDD_AVSS | ADC_OFFSET_CAL_DISABLE | ADC_SCAN_OFF | ADC_SAMPLES_PER_INT_2 | ADC_ALT_BUF_OFF | ADC_ALT_INPUT_ON
-        //
+#define PARAM2  ADC_VREF_AVDD_AVSS | ADC_OFFSET_CAL_DISABLE | ADC_SCAN_ON | ADC_SAMPLES_PER_INT_1 | ADC_ALT_BUF_OFF | ADC_ALT_INPUT_OFF        //
 // Define setup parameters for OpenADC10
 // use peripherial bus clock | set sample time | set ADC clock divider
 // ADC_CONV_CLK_Tcy2 means divide CLK_PB by 2 (max speed)
 // ADC_SAMPLE_TIME_5 seems to work with a source resistance < 1kohm
 // SLOW it down a little
-#define PARAM3 ADC_CONV_CLK_PB | ADC_SAMPLE_TIME_15 | ADC_CONV_CLK_Tcy //ADC_SAMPLE_TIME_15| ADC_CONV_CLK_Tcy2
+    #define PARAM3 ADC_CONV_CLK_PB | ADC_SAMPLE_TIME_15 | ADC_CONV_CLK_Tcy 
 
 // define setup parameters for OpenADC10
 // set AN11 and  as analog inputs
@@ -818,19 +827,17 @@ CloseADC10(); // ensure the ADC is off before setting the configuration
 
 // define setup parameters for OpenADC10
 // do not assign channels to scan
-#define PARAM5 SKIP_SCAN_ALL //|SKIP_SCAN_AN5 //SKIP_SCAN_AN1 |SKIP_SCAN_AN5  //SKIP_SCAN_ALL
- 
+#define PARAM5	  SKIP_SCAN_AN4 |SKIP_SCAN_AN5| SKIP_SCAN_AN6 | SKIP_SCAN_AN7 | SKIP_SCAN_AN8 | SKIP_SCAN_AN9 | SKIP_SCAN_AN10 | SKIP_SCAN_AN11 | SKIP_SCAN_AN12 | SKIP_SCAN_AN13 | SKIP_SCAN_AN14 | SKIP_SCAN_AN15 
 // // configure to sample AN5 and AN1 on MUX A and B
-SetChanADC10( ADC_CH0_NEG_SAMPLEA_NVREF | ADC_CH0_POS_SAMPLEA_AN1 | ADC_CH0_NEG_SAMPLEB_NVREF | ADC_CH0_POS_SAMPLEB_AN5 );
-    
+SetChanADC10( ADC_CH0_NEG_SAMPLEA_NVREF );
 OpenADC10( PARAM1, PARAM2, PARAM3, PARAM4, PARAM5 ); // configure ADC using the parameters defined above
 
 EnableADC10(); // Enable the ADC
 SpiChnOpen(SPI_CHANNEL2, SPI_OPEN_ON | SPI_OPEN_MODE16 | SPI_OPEN_MSTEN | SPI_OPEN_CKE_REV | SPICON_FRMEN | SPICON_FRMPOL, 4);    
 
 //GPIO INIT
-//mPORTASetPinsDigitalOut(BIT_3);
-//mPORTASetBits(BIT_3);
+mPORTBSetPinsDigitalOut(BIT_4);
+mPORTBSetBits(BIT_4);
  
 //Port Expander
   initPE();
