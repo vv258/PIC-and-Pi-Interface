@@ -1,4 +1,4 @@
-#include "port_expander_picandpi.h"
+#include "port_expanderpicandpi.h"
 
 #define SET_CS    {mPORTBSetBits(BIT_13);}
 #define CLEAR_CS  {mPORTBClearBits(BIT_13);}
