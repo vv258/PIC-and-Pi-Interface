@@ -15,12 +15,12 @@ import matplotlib.pyplot as plt
 ReadData=PIC32Interface.ReadGPIO()
 print(ReadData)
 
-PIC32Interface.WriteGPIO(128)
+PIC32Interface.WriteGPIO(0)
 
 #ReadData=PIC32Interface.ReadBuffer(0,200)
 
 #print(ReadData)
-PIC32Interface._SetSampleFreq_( 10, 200 )
+PIC32Interface._SetSampleFreq_( 1, 200 )
 #time.sleep(10)
 
 PIC32Interface._StartADC_( 1,3 )

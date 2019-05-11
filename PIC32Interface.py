@@ -148,7 +148,8 @@ def SetDACB(DacVal):
 def ConfigureDACA(BufNum, Mode):
     Command =[ConfigDACA,BufNum,Mode]
     SendCommand(Command)
- 
+    data_bytes=ser.read(3)
+
 def ConfigureDACB(BufNum, Mode):
     Command =[ConfigDACB,BufNum,Mode]
     SendCommand(Command)

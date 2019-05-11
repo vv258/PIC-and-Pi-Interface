@@ -291,34 +291,6 @@ void vExec_Write_Buf(char *cRecvData){
 
    
 
-	/*
-
-    DmaChnOpen(DMA_CHANNEL2, DMA_CHN_PRI3, DMA_OPEN_DEFAULT);
-
-	// set the events: we want the UART2 rx interrupt to start our transfer
-	DmaChnSetEventControl(DMA_CHANNEL2,DMA_EV_START_IRQ_EN| DMA_EV_START_IRQ(_UART2_RX_IRQ));
-
-	// set the transfer source and dest addresses, source and dest sizes and the cell size
-	DmaChnSetTxfer(DMA_CHANNEL2, (void*)&U2RXREG, tempbuf, 1, iNumOfSamples, 1);
-
-	DmaChnSetEvEnableFlags(DMA_CHANNEL2, DMA_EV_BLOCK_DONE);		// enable the transfer done interrupt: pattern match or all the characters transferred
-
-	char *Buf =&(iBuffer[cBufferNum][0]);
-	// enable the chn
-	DmaChnEnable(DMA_CHANNEL2);
-    while(!DmaChnGetEvFlags(DMA_CHANNEL2));	// get the event flags
-	DmaChnClrEvFlags(DMA_CHANNEL2, DMA_EV_BLOCK_DONE);
-	DmaChnDisable(DMA_CHANNEL2);
-    memcpy(Buf,tempbuf,iNumOfSamples);
-   
-     for(iByteCount=0;iByteCount<iNumOfSamples;iByteCount++){
-        
-      sprintf(cbuffer,"%X", tempbuf[iByteCount]);
-    printLine(8, cbuffer, ILI9340_WHITE, ILI9340_BLUE); 
-    
-     }
-    
-    */
 }
 
 void vExec_Set_PWM_Per(char *cRecvData){
