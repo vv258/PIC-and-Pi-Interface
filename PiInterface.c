@@ -60,7 +60,7 @@ enum SerialState RecvState;
 enum ErrorStatus {CheckSumERR, InvalidCmdERR, NoERR };
 enum ErrorStatus RecvStatus;
 
-#define ComBaudRate     9600
+#define ComBaudRate     115200
 #define DebugBaudRate   9600
 #define StartOfTransmit 0xF0
 #define EndOfTransmit   0xD7

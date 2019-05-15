@@ -2,7 +2,7 @@ import serial
 import binascii
 import time
 
-ComBaudRate     = 9600
+ComBaudRate     = 115200
 StartOfTransmit = 0xF0
 EndOfTransmit   = 0xD7
 
@@ -26,7 +26,7 @@ StartDAC        = 0x3F
 StopDAC         = 0x39
 
 
-ser = serial.Serial( "/dev/tty.SLAB_USBtoUART", 
+ser = serial.Serial( "/dev/ttyAMA0", 
     baudrate=ComBaudRate, 
     parity = serial.PARITY_NONE,
     stopbits = serial.STOPBITS_ONE,
